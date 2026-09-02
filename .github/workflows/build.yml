@@ -1,0 +1,33 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Build Release x64
+        run: msbuild Rogalique.sln /p:Configuration=Release /p:Platform=x64 /m /v:minimal
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Rogalique-x64-Release
+          path: |
+            Rogalique/x64/Release/Rogalique.exe
+            Rogalique/x64/Release/Engine.dll
+            Rogalique/x64/Release/openal32.dll
+            Rogalique/x64/Release/Resources/
+          if-no-files-found: error
