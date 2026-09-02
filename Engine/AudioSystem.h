@@ -13,9 +13,14 @@ public:
     AudioSystem(const AudioSystem&) = delete;
     AudioSystem& operator=(const AudioSystem&) = delete;
 
-    // Открывает поток и запускает фоновую музыку; loop управляет зацикливанием.
+    // Открывает поток и запускает фоновую музыку; loop управляет зацикливанием. Если что-то уже играет — не режет
+    // резким обрывом, а кроссфейдит (см. update()): новый трек нарастает с нуля, пока старый одновременно угасает.
     bool playMusic(const std::string& path, bool loop = true);
     void stopMusic();
+
+    // Продвигает кроссфейд между треками — звать раз в кадр (см. Engine::run()), независимо от паузы мира: музыка
+    // и так уже играет вне зависимости от GameWorld::isPaused(), кроссфейду тоже незачем на ней замирать.
+    void update(sf::Time dt);
 
     // Короткие звуковые эффекты грузятся в буфер целиком под именем name и проигрываются по нему.
     bool loadSound(const std::string& name, const std::string& path);
@@ -39,7 +44,18 @@ public:
 private:
     AudioSystem();
 
-    sf::Music m_music;
+    // Кроссфейд держит два независимых плеера вместо одного (см. playMusic/update в .cpp) — пока новый трек
+    // нарастает, старый должен физически продолжать звучать (угасая), одним sf::Music это не сделать.
+    struct MusicPlayer {
+        sf::Music music;
+        bool active = false;
+    };
+    MusicPlayer m_musicPlayers[2];
+    int m_activeMusicIndex = 0;
+    bool m_crossfading = false;
+    sf::Time m_crossfadeElapsed;
+    sf::Time m_crossfadeDuration;
+
     std::map<std::string, sf::SoundBuffer> m_soundBuffers;
 
     // Пул проигрывателей эффектов — ёмкость резервируется заранее в конструкторе (см. .cpp), чтобы playSound() не

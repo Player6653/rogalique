@@ -1,6 +1,8 @@
 ﻿#include "BossMinionSummonComponent.h"
 #include "GameObject.h"
+#include "GameWorld.h"
 #include "HealthComponent.h"
+#include "NavGrid.h"
 #include <cmath>
 #include <random>
 
@@ -43,12 +45,31 @@ void BossMinionSummonComponent::update(sf::Time dt)
         return;
     }
 
+    // Точка должна быть проходима — на арене есть колонны-укрытия и ящик со стрелами (оба кинематические
+    // коллайдеры, см. ArrowCrate.cpp), точка кольцом вокруг босса без этой проверки могла засадить миньона прямо
+    // в стену/ящик. Тот же приём (несколько попыток + isWalkableWorld), что и у
+    // EnemyBehaviorComponent::pickNewPatrolPoint/BossTeleportComponent; если 8 попыток не нашли проходимую точку —
+    // просто не призываем в этот раз, следующая попытка через summonInterval.
     static std::mt19937 rng{std::random_device{}()};
     std::uniform_real_distribution<float> angleDist(0.f, TAU);
-    float angle = angleDist(rng);
-    sf::Vector2f offset(std::cos(angle) * m_spawnRadius, std::sin(angle) * m_spawnRadius);
+    NavGrid* nav = GameWorld::instance().getNavGrid();
+    sf::Vector2f spawnPosition;
+    bool found = false;
+    for (int attempt = 0; attempt < 8; ++attempt) {
+        float angle = angleDist(rng);
+        sf::Vector2f candidate
+            = getOwner()->getPosition() + sf::Vector2f(std::cos(angle) * m_spawnRadius, std::sin(angle) * m_spawnRadius);
+        if (!nav || nav->isWalkableWorld(candidate)) {
+            spawnPosition = candidate;
+            found = true;
+            break;
+        }
+    }
+    if (!found) {
+        return;
+    }
 
-    GameObject* minion = m_spawnMinion(getOwner()->getPosition() + offset);
+    GameObject* minion = m_spawnMinion(spawnPosition);
     if (minion) {
         m_spawned.push_back(minion);
     }

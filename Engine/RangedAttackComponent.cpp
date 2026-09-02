@@ -15,7 +15,8 @@
 RangedAttackComponent::RangedAttackComponent(std::string label, int damage, float minRange, float maxRange, sf::Time cooldown,
     float projectileSpeed, float projectileHitRadius, std::string projectileTexturePath, sf::Vector2f projectileVisualSize,
     sf::Time shotDelay, std::function<bool(GameObject*)> targetFilter, bool autoFire, bool requireTarget,
-    int projectileFrameCount, sf::Time projectileFrameDuration)
+    int projectileFrameCount, sf::Time projectileFrameDuration, std::function<void(sf::Vector2f)> onShotStarted,
+    std::function<void(sf::Vector2f)> onImpact)
     : m_label(std::move(label)),
       m_damage(damage),
       m_minRange(minRange),
@@ -30,7 +31,9 @@ RangedAttackComponent::RangedAttackComponent(std::string label, int damage, floa
       m_shotDelay(shotDelay),
       m_targetFilter(std::move(targetFilter)),
       m_autoFire(autoFire),
-      m_requireTarget(requireTarget)
+      m_requireTarget(requireTarget),
+      m_onShotStarted(std::move(onShotStarted)),
+      m_onImpact(std::move(onImpact))
 {
     assert(damage >= 0 && "RangedAttackComponent: damage must not be negative");
     assert(minRange >= 0.f && "RangedAttackComponent: minRange must not be negative");
@@ -75,7 +78,7 @@ void RangedAttackComponent::resolvePendingShot()
 
     auto projectile = std::make_unique<Projectile>(owner->getPosition(), m_pendingDirection, m_projectileSpeed, m_damage,
         m_projectileHitRadius, m_maxRange + m_projectileHitRadius, owner, m_projectileTexturePath, m_projectileVisualSize,
-        m_projectileFrameCount, m_projectileFrameDuration);
+        m_projectileFrameCount, m_projectileFrameDuration, m_onImpact);
     GameWorld::instance().spawnInRoot(std::move(projectile));
 
     LOG_INFO(m_label + " fired a projectile");
@@ -141,11 +144,14 @@ bool RangedAttackComponent::tryShoot()
     // Кулдаун и "выстрел начался" стартуют сразу, как у AttackComponent — от этого зависит SoldierAnimationComponent.
     m_cooldownRemaining = m_cooldown;
     m_justFired = true;
+    if (m_onShotStarted) {
+        m_onShotStarted(owner->getPosition());
+    }
 
     if (m_shotDelay <= sf::Time::Zero) {
         auto projectile = std::make_unique<Projectile>(owner->getPosition(), direction, m_projectileSpeed, m_damage,
             m_projectileHitRadius, m_maxRange + m_projectileHitRadius, owner, m_projectileTexturePath, m_projectileVisualSize,
-            m_projectileFrameCount, m_projectileFrameDuration);
+            m_projectileFrameCount, m_projectileFrameDuration, m_onImpact);
         GameWorld::instance().spawnInRoot(std::move(projectile));
         LOG_INFO(m_label + " fired a projectile");
     } else {

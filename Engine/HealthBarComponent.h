@@ -20,6 +20,12 @@ public:
     void onOwnerMoved(sf::Vector2f newPosition) override;
 
 private:
+    // Пересчитывает m_segments/m_segmentLocalOffsets под текущий m_target.getMaxHp() — вынесено из конструктора,
+    // потому что maxHp теперь не константа на весь забег (см. HealthComponent::increaseMaxHp, награда за серию
+    // убийств в Rogalique/KillStreakComponent): update() зовёт это заново, стоит maxHp измениться, иначе новый
+    // сегмент просто не появился бы на полоске до следующего пересоздания HUD.
+    void rebuildSegments();
+
     HealthComponent& m_target;
     std::function<bool()> m_isVisible;
     sf::Vector2f m_size;
@@ -32,6 +38,9 @@ private:
     sf::RectangleShape m_fallbackBackground;
 
     std::vector<sf::RectangleShape> m_segments;
-    // Позиция сегмента относительно владельца (левый верхний угол полоски) считается один раз в конструкторе по maxHp, дальше только сдвигается на текущую позицию владельца в onOwnerMoved.
+    // Позиция сегмента относительно владельца (левый верхний угол полоски) — пересчитывается в rebuildSegments()
+    // вместе с самими сегментами, дальше только сдвигается на текущую позицию владельца в onOwnerMoved.
     std::vector<sf::Vector2f> m_segmentLocalOffsets;
+    // maxHp на момент последней сборки m_segments — сравнение в update() решает, нужен ли rebuildSegments().
+    int m_lastKnownMaxHp = 0;
 };

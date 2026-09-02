@@ -214,6 +214,18 @@ public:
 private:
     GameWorld() = default;
 
+    // Объявлены ДО m_root/m_uiRoot нарочно: порядок разрушения членов класса — обратный порядку объявления, а
+    // деструкторы ColliderComponent::~ColliderComponent()/HealthComponent::~HealthComponent() зовут
+    // unregisterCollider()/unregisterHealth(), обращаясь к этим же векторам того же синглтона. Если бы они были
+    // объявлены позже m_root/m_uiRoot, то разрушались бы РАНЬШЕ дерева сцены — любой компонент, ещё живущий в
+    // дереве на момент уничтожения GameWorld (например, если Engine::run() прервался необработанным исключением
+    // до штатного world.clear() в конце — см. Engine.cpp), обратился бы к уже разрушенным векторам: UB, порча
+    // памяти/крэш при выходе из процесса вместо честного сообщения об исходной ошибке (найдено при аудите движка).
+    std::vector<ColliderComponent*> m_colliders;
+    std::vector<ColliderComponent*> m_dynamicColliders;
+    std::vector<HealthComponent*> m_healthComponents;
+    CameraComponent* m_activeCamera = nullptr;
+
     GameObject m_root;
     GameObject m_uiRoot;
     bool m_paused = true;
@@ -222,10 +234,6 @@ private:
     bool m_gameOver = false;
     bool m_victory = false;
 
-    std::vector<ColliderComponent*> m_colliders;
-    std::vector<ColliderComponent*> m_dynamicColliders;
-    std::vector<HealthComponent*> m_healthComponents;
-    CameraComponent* m_activeCamera = nullptr;
     std::vector<std::pair<GameObject*, std::unique_ptr<GameObject>>> m_pendingSpawns;
     std::unique_ptr<NavGrid> m_navGrid;
     std::unique_ptr<ColliderGrid> m_colliderGrid;

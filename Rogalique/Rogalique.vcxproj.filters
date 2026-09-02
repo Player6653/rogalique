@@ -139,6 +139,18 @@
     <ClCompile Include="DeathParticleComponent.cpp">
       <Filter>Sources</Filter>
     </ClCompile>
+    <ClCompile Include="VampireSpawnMinion.cpp">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="KillStreakComponent.cpp">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="BossTeleportComponent.cpp">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="BossSpinBarrageComponent.cpp">
+      <Filter>Sources</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Player.h">
@@ -277,6 +289,21 @@
       <Filter>Sources</Filter>
     </ClInclude>
     <ClInclude Include="DeathParticleComponent.h">
+      <Filter>Sources</Filter>
+    </ClInclude>
+    <ClInclude Include="VampireSpawnMinion.h">
+      <Filter>Sources</Filter>
+    </ClInclude>
+    <ClInclude Include="KillStreakComponent.h">
+      <Filter>Sources</Filter>
+    </ClInclude>
+    <ClInclude Include="BossTeleportComponent.h">
+      <Filter>Sources</Filter>
+    </ClInclude>
+    <ClInclude Include="BossIntroComponent.h">
+      <Filter>Sources</Filter>
+    </ClInclude>
+    <ClInclude Include="BossSpinBarrageComponent.h">
       <Filter>Sources</Filter>
     </ClInclude>
   </ItemGroup>

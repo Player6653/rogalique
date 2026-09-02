@@ -232,6 +232,7 @@ void InventoryOverlayComponent::open()
     GameWorld::instance().setPaused(true);
     GameWorld::instance().setModalOpen(true);
     m_escapeEdge.sync(FocusedInput::isKeyPressed(sf::Keyboard::Escape));
+    m_rmbEdge.sync(FocusedInput::isButtonPressed(sf::Mouse::Right));
     m_mouseLeftEdge.sync(FocusedInput::isButtonPressed(sf::Mouse::Left));
     refreshVisuals();
 }
@@ -254,11 +255,17 @@ void InventoryOverlayComponent::update(sf::Time)
     if (!canToggle) {
         m_toggleEdge.sync(FocusedInput::isKeyPressed(sf::Keyboard::Tab));
         m_escapeEdge.sync(FocusedInput::isKeyPressed(sf::Keyboard::Escape));
+        m_rmbEdge.sync(FocusedInput::isButtonPressed(sf::Mouse::Right));
         m_mouseLeftEdge.sync(FocusedInput::isButtonPressed(sf::Mouse::Left));
         return;
     }
 
-    if (m_toggleEdge.poll(FocusedInput::isKeyPressed(sf::Keyboard::Tab))) {
+    // Tab и ПКМ — оба открывают/закрывают инвентарь (ПКМ тем же жестом "назад", что уже везде в игре — см.
+    // CreditsOverlayComponent/SettingsOverlayComponent). poll() зовём для обоих безусловно — иначе не опрошенная
+    // клавиша осталась бы с протухшим "было зажато" от предыдущего кадра.
+    bool togglePressed = m_toggleEdge.poll(FocusedInput::isKeyPressed(sf::Keyboard::Tab));
+    bool rmbTogglePressed = m_rmbEdge.poll(FocusedInput::isButtonPressed(sf::Mouse::Right));
+    if (togglePressed || rmbTogglePressed) {
         m_visible ? close() : open();
         return;
     }

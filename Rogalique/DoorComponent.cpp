@@ -67,6 +67,11 @@ void DoorComponent::update(sf::Time)
         }
     }
 
+    // Ключи своё дело сделали — забираем из мешка, а не оставляем бесполезно висеть в инвентаре до конца забега.
+    for (const std::string& keyId : m_requiredKeyIds) {
+        inventory->removeItemById(keyId);
+    }
+
     m_open = true;
     m_icon.loadTexture(m_openTexturePath);
     AudioSystem::instance().playSound("ui_confirm");

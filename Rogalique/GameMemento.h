@@ -214,6 +214,69 @@ public:
         m_inventory.hasArenaWave = true;
     }
 
+    // Максимум HP игрока (см. KillStreakComponent — растёт за убийства ботов в подземелье) и счётчик убийств,
+    // накопленный к текущей "пятёрке" (0..4, обнуляется до 0 каждый раз, когда даёт +1 к максимуму). false у
+    // сейвов старее этой награды — тогда вызывающий код просто оставляет базовый PLAYER_MAX_HP и нулевой счётчик,
+    // как было раньше. Последнее звено цепочки, после arenaWave.
+    bool hasKillStreakData() const
+    {
+        return m_inventory.hasKillStreak;
+    }
+    int getPlayerMaxHp() const
+    {
+        return m_inventory.playerMaxHp;
+    }
+    int getDungeonKillStreak() const
+    {
+        return m_inventory.dungeonKillStreak;
+    }
+    void setKillStreakData(int playerMaxHp, int dungeonKillStreak)
+    {
+        m_inventory.playerMaxHp = playerMaxHp;
+        m_inventory.dungeonKillStreak = dungeonKillStreak;
+        m_inventory.hasKillStreak = true;
+    }
+
+    // Секундомер забега на момент сохранения (см. GameTimerComponent) — false у сейвов старее этого поля, тогда
+    // вызывающий код просто сбрасывает таймер на ноль, как было раньше. Последнее звено цепочки, после killStreak.
+    // Без этого поля "Продолжить"/"Загрузить сохранение" обнуляли бы секундомер безусловно — пересохранение прямо
+    // перед финишем занижало бы честное время в таблице лидеров (баг, найден при проверке сохранения на абьюзы).
+    bool hasElapsedTimeData() const
+    {
+        return m_inventory.hasElapsedTime;
+    }
+    float getElapsedSeconds() const
+    {
+        return m_inventory.elapsedSeconds;
+    }
+    void setElapsedTime(float elapsedSeconds)
+    {
+        m_inventory.elapsedSeconds = elapsedSeconds;
+        m_inventory.hasElapsedTime = true;
+    }
+
+    // Сундуки (см. Chest/ChestComponent) — по индексу в том же порядке, в котором SceneFacade обходит их через
+    // getComponentsInChildren<ChestComponent>() (стабилен, пока не пересобралась форма уровня — см.
+    // hasLevelShapeSeed, тот сид применяется раньше этого поля при загрузке). true, если конкретный сундук на
+    // момент сохранения уже был открыт. Раньше состояние сундука сознательно не сохранялось ("часть планировки
+    // уровня, а не прогресс"), но предмет из сундука УЖЕ попадает в сохраняемый инвентарь — без этого поля сундук
+    // при загрузке открывался бы заново и отдавал тот же предмет второй раз (баг-дубликат, найден при аудите
+    // сохранений). false у сейвов старее этого поля — тогда вызывающий код просто оставляет все сундуки закрытыми,
+    // как было раньше. Последнее звено цепочки, после elapsedTime.
+    bool hasOpenedChestsData() const
+    {
+        return m_inventory.hasOpenedChests;
+    }
+    const std::vector<int>& getOpenedChests() const
+    {
+        return m_inventory.openedChests;
+    }
+    void setOpenedChests(std::vector<int> openedChests)
+    {
+        m_inventory.openedChests = std::move(openedChests);
+        m_inventory.hasOpenedChests = true;
+    }
+
     void setPlayerPosition(sf::Vector2f position)
     {
         m_playerPosition = position;
@@ -314,6 +377,16 @@ private:
         // Последнее звено цепочки (после levelShapeSeed) — см. hasArenaWaveData()/setArenaWave() выше.
         int arenaWave = -1;
         bool hasArenaWave = false;
+        // Звено после arenaWave — см. hasKillStreakData()/setKillStreakData() выше.
+        int playerMaxHp = 0;
+        int dungeonKillStreak = 0;
+        bool hasKillStreak = false;
+        // Звено после killStreak — см. hasElapsedTimeData()/setElapsedTime() выше.
+        float elapsedSeconds = 0.f;
+        bool hasElapsedTime = false;
+        // Самое новое звено (после elapsedTime) — см. hasOpenedChestsData()/setOpenedChests() выше.
+        std::vector<int> openedChests;
+        bool hasOpenedChests = false;
     };
 
     sf::Vector2f m_playerPosition;

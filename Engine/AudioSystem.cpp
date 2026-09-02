@@ -1,12 +1,16 @@
 ﻿#include "pch.h"
 #include "AudioSystem.h"
 #include "Log.h"
+#include <algorithm>
 
 namespace
 {
     // С запасом на реалистичный пик одновременных эффектов (удары/попадания в бою) — см. комментарий у m_soundPool
     // в AudioSystem.h, почему reserve() важен именно здесь, а не просто "на всякий случай".
     constexpr std::size_t SOUND_POOL_RESERVED_CAPACITY = 32;
+    // Длительность кроссфейда между треками (см. AudioSystem::playMusic/update) — достаточно, чтобы смена волны
+    // арены не звучала обрывом, но не настолько долго, чтобы два трека заметно "плыли" друг поверх друга.
+    const sf::Time MUSIC_CROSSFADE_DURATION = sf::seconds(1.2f);
 } // namespace
 
 AudioSystem::AudioSystem()
@@ -22,21 +26,73 @@ AudioSystem& AudioSystem::instance()
 
 bool AudioSystem::playMusic(const std::string& path, bool loop)
 {
-    if (!m_music.openFromFile(path)) {
+    MusicPlayer& current = m_musicPlayers[m_activeMusicIndex];
+    bool hasCurrentTrack = current.active && current.music.getStatus() != sf::Music::Stopped;
+
+    int nextIndex = 1 - m_activeMusicIndex;
+    MusicPlayer& next = m_musicPlayers[nextIndex];
+    if (!next.music.openFromFile(path)) {
         LOG_WARN("AudioSystem: не удалось загрузить музыку \"" + path + "\"");
         return false;
     }
-    m_music.setLoop(loop);
-    m_music.setVolume(m_musicVolume * 100.f);
-    m_music.play();
-    LOG_INFO("AudioSystem: фоновая музыка \"" + path + "\" запущена (loop=" + (loop ? std::string("true") : std::string("false"))
-             + ")");
+    next.music.setLoop(loop);
+
+    if (!hasCurrentTrack) {
+        // Ничего не играет (первый трек за сцену, либо предыдущий уже сам доиграл до конца без loop) — включаем
+        // сразу на полную громкость, кроссфейдить не с чем.
+        next.music.setVolume(m_musicVolume * 100.f);
+        next.music.play();
+        next.active = true;
+        current.active = false;
+        current.music.stop();
+        m_activeMusicIndex = nextIndex;
+        m_crossfading = false;
+        LOG_INFO("AudioSystem: фоновая музыка \"" + path
+                 + "\" запущена без кроссфейда (loop=" + (loop ? std::string("true") : std::string("false")) + ")");
+        return true;
+    }
+
+    // Кроссфейд: новый плеер стартует с нуля и нарастает, старый одновременно угасает — оба физически звучат
+    // одновременно MUSIC_CROSSFADE_DURATION, update() ведёт оба таймера каждый кадр.
+    next.music.setVolume(0.f);
+    next.music.play();
+    next.active = true;
+    m_activeMusicIndex = nextIndex;
+    m_crossfading = true;
+    m_crossfadeElapsed = sf::Time::Zero;
+    m_crossfadeDuration = MUSIC_CROSSFADE_DURATION;
+    LOG_INFO("AudioSystem: кроссфейд на \"" + path + "\" (loop=" + (loop ? std::string("true") : std::string("false")) + ")");
     return true;
 }
 
 void AudioSystem::stopMusic()
 {
-    m_music.stop();
+    m_musicPlayers[0].music.stop();
+    m_musicPlayers[1].music.stop();
+    m_musicPlayers[0].active = false;
+    m_musicPlayers[1].active = false;
+    m_crossfading = false;
+}
+
+void AudioSystem::update(sf::Time dt)
+{
+    if (!m_crossfading) {
+        return;
+    }
+
+    m_crossfadeElapsed += dt;
+    float fraction = std::min(1.f, m_crossfadeElapsed.asSeconds() / m_crossfadeDuration.asSeconds());
+
+    MusicPlayer& fadingIn = m_musicPlayers[m_activeMusicIndex];
+    MusicPlayer& fadingOut = m_musicPlayers[1 - m_activeMusicIndex];
+    fadingIn.music.setVolume(m_musicVolume * 100.f * fraction);
+    fadingOut.music.setVolume(m_musicVolume * 100.f * (1.f - fraction));
+
+    if (fraction >= 1.f) {
+        fadingOut.music.stop();
+        fadingOut.active = false;
+        m_crossfading = false;
+    }
 }
 
 bool AudioSystem::loadSound(const std::string& name, const std::string& path)
@@ -83,5 +139,9 @@ void AudioSystem::playSound(const std::string& name)
 void AudioSystem::setMusicVolume(float volume01)
 {
     m_musicVolume = volume01;
-    m_music.setVolume(m_musicVolume * 100.f);
+    // Во время кроссфейда громкость обоих плееров каждый кадр всё равно пересчитывает update() (доля от
+    // m_musicVolume) — трогать её здесь смысла нет, только собьёт текущую долю затухания/нарастания.
+    if (!m_crossfading) {
+        m_musicPlayers[m_activeMusicIndex].music.setVolume(m_musicVolume * 100.f);
+    }
 }

@@ -2,6 +2,7 @@
 #include "EngineExport.h"
 #include "IComponent.h"
 #include <SFML/Graphics.hpp>
+#include <functional>
 #include <string>
 
 class HealthComponent;
@@ -11,8 +12,10 @@ class HealthComponent;
 // уничтожается сам, если пролетел дальше maxRange, ни в кого не попав стены не задевает, снаряд их пролетает насквозь.
 class ENGINE_API ProjectileComponent : public IComponent {
 public:
-    ProjectileComponent(
-        sf::Vector2f direction, float speed, int damage, float hitRadius, float maxRange, const GameObject* ignoreOwner);
+    // onImpact — см. Projectile.h — зовётся при попадании в стену ИЛИ в цель (оба реальных попадания), но не на
+    // угасании по maxRange (там снаряд просто безмолвно рассеивается в воздухе, показывать вспышку попадания не о чем).
+    ProjectileComponent(sf::Vector2f direction, float speed, int damage, float hitRadius, float maxRange,
+        const GameObject* ignoreOwner, std::function<void(sf::Vector2f)> onImpact = nullptr);
 
     void update(sf::Time dt) override;
 
@@ -24,4 +27,5 @@ private:
     float m_maxRange;
     float m_traveled = 0.f;
     const GameObject* m_ignoreOwner;
+    std::function<void(sf::Vector2f)> m_onImpact;
 };

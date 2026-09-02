@@ -29,17 +29,22 @@ namespace
     constexpr int PLAYER_ARMOR = 0;
 
     constexpr int PLAYER_ATTACK_DAMAGE = 2;
-    constexpr float PLAYER_ATTACK_RANGE = 56.f;
+    // 70, не 56 — с коллайдером босса 84x84 (см. Boss.cpp/SceneFacade.cpp) минимальная физическая дистанция до
+    // центра босса ~58px (половины коллайдеров 16+42), 56 почти не давало запаса и удар по боссу ощущался
+    // "непопадающим" при малейшем движении. 70 даёт ~12px запаса вместо прежних ~8, и заодно
+    // делает удар чуть более прощающим по обычным ботам (у тех коллайдер меньше, запас был и остаётся с большим
+    // избытком).
+    constexpr float PLAYER_ATTACK_RANGE = 70.f;
     const sf::Time PLAYER_ATTACK_COOLDOWN = sf::seconds(0.5f);
 
     // i-frames после удара — иначе орк и лучник, оказавшись рядом одновременно, могут снять HP одной пачкой
     // почти слипшихся ударов за доли секунды, что ощущается нечестно.
     const sf::Time PLAYER_HIT_INVULNERABILITY = sf::seconds(0.6f);
 
-    // Мигание тела на "мало здоровья" (см. LowHealthPulseComponent) — при PLAYER_MAX_HP=4 это ровно последний
-    // удар до смерти, предупреждение должно бросаться в глаза только по-настоящему близко к концу, не раньше.
-    constexpr int LOW_HP_THRESHOLD = 1;
-    const sf::Time LOW_HP_BLINK_INTERVAL = sf::seconds(0.35f);
+    // Player::LOW_HP_THRESHOLD/LOW_HP_PULSE_PERIOD (см. Player.h) — пульсация тела на "мало здоровья" (см.
+    // LowHealthPulseComponent ниже) и виньетка экрана (LowHealthScreenFlashComponent, см. SceneFacade.cpp) читают
+    // один и тот же порог/период оттуда, а не две независимые копии — раньше SceneFacade держал свой хардкод-
+    // литерал, рассинхрон периода между телом и экраном уже был багом (см. аудит дублирования кода).
 
     // Пистолет — второе оружие (переключение по Q, см. WeaponComponent). minRange=0 — можно стрелять в упор,
     // конкурировать с копьём за дистанцию тут не с чем, оба оружия не активны одновременно.
@@ -58,6 +63,10 @@ namespace
     constexpr int GUN_RESERVE_AMMO = 10;
     const sf::Time GUN_RELOAD_DURATION = sf::seconds(1.f);
 } // namespace
+
+// См. класс-комментарий у Player::LOW_HP_PULSE_PERIOD в Player.h — sf::Time в SFML 2.5.1 не constexpr-совместим,
+// поэтому определение статического члена, в отличие от LOW_HP_THRESHOLD, вынесено сюда.
+const sf::Time Player::LOW_HP_PULSE_PERIOD = sf::seconds(1.4f);
 
 Player::Player(sf::Vector2f position, sf::Vector2f size, sf::Vector2f cameraViewSize, float speed)
     : GameObject(position)
@@ -91,6 +100,9 @@ Player::Player(sf::Vector2f position, sf::Vector2f size, sf::Vector2f cameraView
         LOG_ERROR(std::string("Player: некорректные HP/броня, использую значения по умолчанию (1/0): ") + e.what());
         health = &addComponent<HealthComponent>(1, 0, PLAYER_HIT_INVULNERABILITY);
     }
+    // Упрощение сложности — см. HealthComponent::setLastStandEnabled(): удар, который снёс бы
+    // HP с >1 до 0, вместо этого оставляет 1 HP.
+    health->setLastStandEnabled(true);
 
     // Мешок + экипировка (см. InventoryOverlayComponent, открывается по Tab) — базовая броня та же, что и у
     // HealthComponent выше, дальше InventoryComponent сам добавляет к ней бонус от надетой экипировки.
@@ -110,10 +122,14 @@ Player::Player(sf::Vector2f position, sf::Vector2f size, sf::Vector2f cameraView
     addComponent<HitFlashComponent>(*m_bodySprite, sf::seconds(0.3f), sf::seconds(0.06f), sf::Color(255, 60, 60));
     // Дополнительное предупреждение "мало здоровья" (см. LowHealthPulseComponent) — держится, пока HP не выше
     // LOW_HP_THRESHOLD, а не короткой вспышкой на сам удар, как HitFlashComponent выше.
-    addComponent<LowHealthPulseComponent>(*health, *m_bodySprite, LOW_HP_THRESHOLD, LOW_HP_BLINK_INTERVAL);
+    addComponent<LowHealthPulseComponent>(*health, *m_bodySprite, LOW_HP_THRESHOLD, Player::LOW_HP_PULSE_PERIOD);
     // Пыль под ногами на обычный бег (см. PlayerDustTrailComponent) — в паке анимации для этого нет, поэтому
-    // процедурные частицы (ParticleSystem), а не спрайтовый ролик, как у m_dustSprite (рывок/прыжок).
-    addComponent<PlayerDustTrailComponent>(input, VISUAL_SIZE.y / 2.f);
+    // процедурные частицы (ParticleSystem), а не спрайтовый ролик, как у m_dustSprite (рывок/прыжок). Смещение —
+    // не половина VISUAL_SIZE (64, край всего бокса спрайта, там уже пустота под ногами), а по факту непрозрачных
+    // пикселей кадра Run_Down.png: ноги на y≈41 из 64 при центре кадра 32, при масштабе VISUAL_SIZE.y/64=2 это
+    // ~18-20 мировых пикселей вниз от центра — раньше пыль всплывала заметно НИЖЕ персонажа, а не под ним (был баг).
+    constexpr float DUST_FEET_OFFSET_Y = 20.f;
+    addComponent<PlayerDustTrailComponent>(input, DUST_FEET_OFFSET_Y);
 
     // Подбирает нужный ролик Idle/Walk/Run/Dash/Jump/Death (и синхронную тень к нему) по направлению, спринту, рывку и здоровью, листает кадры через SpriteComponent.
     addComponent<PlayerAnimationComponent>();

@@ -23,11 +23,21 @@ public:
     // spawnEnemy — фактическое создание+добавление в сцену (SceneFacade знает, как: makeEnemyInstance() +
     // GameWorld::spawnIn(), см. run()) — компонент сам ничего не создаёт, просто дирижирует. musicPaths — по
     // записи на волну, играется при её старте (пустая строка — не менять текущую музыку). spawnPoints — где
-    // появляются бойцы волны, зациклено по модулю, если бойцов больше точек.
+    // появляются бойцы волны, зациклено по модулю, если бойцов больше точек. victoryDelay — необязательная пауза
+    // (0 по умолчанию, как раньше) между тем, как выбита ПОСЛЕДНЯЯ волна, и реальным вызовом onAllWavesCleared —
+    // нужна, чтобы успела доиграть анимация смерти финального врага (обычно босса, см. SceneFacade.cpp), а не
+    // обрывалась на первом кадре экраном победы поверх. Мир НЕ ставится на паузу на это время (см. update()) —
+    // тот же приём, что у PlayerDeathComponent, только с фактической задержкой самого onAllWavesCleared, а не
+    // немедленным вызовом с доигрыванием анимации "под" уже открытым экраном. spawnStagger — необязательная пауза
+    // (0 по умолчанию, как раньше — все бойцы волны спавнились в один кадр) МЕЖДУ появлением бойцов ОДНОЙ волны —
+    // раньше волны "резко появлялись" всем составом разом; см. также SceneFacade.cpp, где на каждого
+    // заспавненного бойца вдобавок навешивается SpawnFadeComponent (плавное проявление), staggering и fade вместе
+    // и дают эффект "волна затекает на арену", а не "волна материализуется целиком".
     ArenaWaveComponent(std::vector<std::vector<WaveEnemySpec>> waves, std::vector<std::string> musicPaths,
         std::vector<sf::Vector2f> spawnPoints,
         std::function<GameObject*(const std::string& kind, sf::Vector2f position)> spawnEnemy,
-        std::function<void()> onAllWavesCleared);
+        std::function<void()> onAllWavesCleared, sf::Time victoryDelay = sf::Time::Zero,
+        sf::Time spawnStagger = sf::Time::Zero);
 
     void update(sf::Time dt) override;
     void reset() override;
@@ -67,7 +77,16 @@ public:
     }
 
 private:
+    struct PendingSpawn {
+        std::string kind;
+        sf::Vector2f position;
+    };
+
     void spawnWave(std::size_t index);
+    // true, только когда и все живые бойцы волны мертвы, И очередь ещё не заспавненных бойцов той же волны пуста
+    // (см. m_pendingSpawns) — без второго условия волна могла бы засчитаться выбитой ДО того, как весь её состав
+    // вообще появился на арене (например, первые несколько заспавненных бойцов быстро погибли, пока остальные ещё
+    // ждут своей очереди в очереди спавна).
     bool currentWaveCleared() const;
 
     std::vector<std::vector<WaveEnemySpec>> m_waves;
@@ -78,4 +97,12 @@ private:
 
     int m_currentWave = -1; // -1 — ещё не запущено.
     std::vector<GameObject*> m_currentWaveEnemies;
+
+    sf::Time m_victoryDelay;
+    bool m_victoryPending = false;
+    sf::Time m_victoryDelayRemaining;
+
+    sf::Time m_spawnStagger;
+    std::vector<PendingSpawn> m_pendingSpawns;
+    sf::Time m_spawnStaggerRemaining;
 };

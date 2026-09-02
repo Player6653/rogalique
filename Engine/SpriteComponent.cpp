@@ -217,6 +217,7 @@ void SpriteComponent::draw(sf::RenderWindow& window) const
 
 void SpriteComponent::onOwnerMoved(sf::Vector2f newPosition)
 {
-    m_placeholder.setPosition(newPosition);
-    m_sprite.setPosition(newPosition);
+    m_ownerPosition = newPosition;
+    m_placeholder.setPosition(newPosition + m_positionOffset);
+    m_sprite.setPosition(newPosition + m_positionOffset);
 }

@@ -51,6 +51,14 @@ private:
     KeyEdge m_activateEdge;
     KeyEdge m_mouseLeftEdge;
 
+    // См. update()/updateMouse() в .cpp — без этого курсор, просто ОТДЫХАЮЩИЙ над какой-то кнопкой (не наведённый
+    // осознанно, а оставшийся там с прошлого экрана/действия), молча перехватывал бы m_selected у клавиатуры на
+    // первом же кадре видимости меню — по факту нашли на экране победы: сразу после ввода имени Enter уводил в
+    // "В главное меню" вместо "Играть заново" именно из-за этого (курсор случайно оказывался над вторым пунктом).
+    bool m_wasVisible = false;
+    bool m_hasLastMousePos = false;
+    sf::Vector2f m_lastMousePos;
+
     OverlayPanelBase m_base;
 
     sf::Texture m_buttonTexture;

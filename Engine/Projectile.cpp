@@ -11,7 +11,7 @@ namespace
 
 Projectile::Projectile(sf::Vector2f position, sf::Vector2f direction, float speed, int damage, float hitRadius, float maxRange,
     const GameObject* ignoreOwner, const std::string& texturePath, sf::Vector2f visualSize, int frameCount,
-    sf::Time frameDuration)
+    sf::Time frameDuration, std::function<void(sf::Vector2f)> onImpact)
     : GameObject(position)
 {
     SpriteComponent& sprite = addComponent<SpriteComponent>(visualSize);
@@ -28,5 +28,5 @@ Projectile::Projectile(sf::Vector2f position, sf::Vector2f direction, float spee
     // Текстура нарисована указывающей вправо (0°) — тот же ноль, что и у atan2/sf::Sprite::setRotation.
     sprite.setRotation(std::atan2(direction.y, direction.x) * RAD_TO_DEG);
 
-    addComponent<ProjectileComponent>(direction, speed, damage, hitRadius, maxRange, ignoreOwner);
+    addComponent<ProjectileComponent>(direction, speed, damage, hitRadius, maxRange, ignoreOwner, std::move(onImpact));
 }

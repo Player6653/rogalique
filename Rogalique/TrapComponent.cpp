@@ -59,3 +59,14 @@ void TrapComponent::update(sf::Time dt)
     }
     m_damageCooldownRemaining = DAMAGE_COOLDOWN;
 }
+
+void TrapComponent::reset()
+{
+    // Сейчас Trap целиком пересоздаётся вместе с levelContainer при пересборке уровня, так что этот метод пока
+    // ни разу не вызывается на живом экземпляре — но ChestComponent/DoorComponent рядом (тот же жизненный цикл
+    // интерактивных объектов) свой reset() имеют, а этот — нет. Без него, если Trap когда-нибудь станет частью
+    // персистентного набора актёров с обычным resetComponents(), фаза шипов/кулдаун урона остались бы висеть в
+    // старом состоянии, рассинхронизированные с анимацией (найдено при аудите дублирования кода).
+    m_cycleElapsed = sf::Time::Zero;
+    m_damageCooldownRemaining = sf::Time::Zero;
+}

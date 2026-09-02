@@ -21,7 +21,9 @@ namespace
     // что у Малого зелья лечения (см. ItemDefinition.cpp "potion_small") — при максимум 4 HP у игрока (см.
     // PLAYER_MAX_HP в Player.cpp) более сильный тик ощущался бы читерским пассивным вечным хилом.
     constexpr int NECKLACE_REGEN_AMOUNT = 1;
-    const sf::Time NECKLACE_REGEN_INTERVAL = sf::seconds(8.f);
+    // Было 4с, замедлено до 6с — 4с ощущалось слишком щедрым пассивным хилом на фоне
+    // PLAYER_MAX_HP=4 (по сути полный автохил из ямы за один цикл боя).
+    const sf::Time NECKLACE_REGEN_INTERVAL = sf::seconds(6.f);
 
     // Порядок, в котором ломающаяся броня по очереди принимает на себя удары (см. InventoryComponent::absorbHit) —
     // НЕ совпадает с порядком слотов в UI (см. EQUIP_CATEGORY_ORDER в SceneFacade.cpp, тот — просто раскладка
@@ -90,6 +92,27 @@ bool InventoryComponent::addItem(const ItemDefinition& item, int count)
     return true;
 }
 
+bool InventoryComponent::removeItemById(const std::string& itemId, int count)
+{
+    bool removedAny = false;
+    for (InventorySlot& slot : m_bag) {
+        if (count <= 0) {
+            break;
+        }
+        if (slot.isEmpty() || slot.item->id != itemId) {
+            continue;
+        }
+        int take = std::min(count, slot.count);
+        slot.count -= take;
+        count -= take;
+        removedAny = true;
+        if (slot.count <= 0) {
+            slot = InventorySlot{};
+        }
+    }
+    return removedAny;
+}
+
 void InventoryComponent::useBagSlot(int index)
 {
     if (index < 0 || index >= BAG_SIZE || m_bag[index].isEmpty()) {
@@ -119,21 +142,29 @@ void InventoryComponent::useBagSlot(int index)
 
     if (isEquipCategory(item.category)) {
         const ItemDefinition* previous = getEquipped(item.category);
+        // Слот, откуда взяли надеваемый предмет, освобождаем и сразу пробуем вернуть в него прежнюю экипировку —
+        // не отдельным addItem() "в никуда", иначе один и тот же предмет мог бы задвоиться, если мешок как раз
+        // оказался полон в этот момент.
+        InventorySlot savedSlot = slot;
+        --slot.count;
+        if (slot.count <= 0) {
+            slot = InventorySlot{};
+        }
+        // Если возвращать некуда (мешок полон и без места даже под только что освобождённый слот — с текущими
+        // предметами такого не бывает, вся экипировка maxStack==1, но код не должен молча на этом полагаться) —
+        // отменяем всю замену, а не надеваем новое поверх старого: иначе прежняя экипировка терялась бы
+        // безвозвратно (найдено при аудите инвентаря).
+        if (previous && !addItem(*previous, 1)) {
+            slot = savedSlot;
+            LOG_WARN("Inventory: мешок полон, \"" + item.displayName + "\" не надето — некуда вернуть \""
+                      + previous->displayName + "\"");
+            return;
+        }
         m_equipment[item.category] = &item;
         if (item.durability > 0) {
             m_durability[item.category] = item.durability;
         } else {
             m_durability.erase(item.category);
-        }
-        // Слот, откуда взяли надеваемый предмет, освобождаем и сразу пробуем вернуть в него прежнюю экипировку —
-        // не отдельным addItem() "в никуда", иначе один и тот же предмет мог бы задвоиться, если мешок как раз
-        // оказался полон в этот момент.
-        --slot.count;
-        if (slot.count <= 0) {
-            slot = InventorySlot{};
-        }
-        if (previous && !addItem(*previous, 1)) {
-            LOG_WARN("Inventory: не удалось вернуть \"" + previous->displayName + "\" в мешок при смене экипировки");
         }
         recomputeEquipmentEffects();
         AudioSystem::instance().playSound("equip");

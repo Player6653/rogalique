@@ -20,9 +20,19 @@ public:
     // omnidirectional=false (по умолчанию) — цель ещё и в переднем конусе ±60° от facing владельца (см.
     // findTarget()), как у Orc/Soldier/игрока. true — конус не проверяется вовсе, бьёт по всем сторонам сразу
     // (слизь: "радиус вокруг себя", а не удар в одну сторону).
+    // lifestealFraction — необязательно (0 по умолчанию, как раньше): доля реально нанесённого урона, которой
+    // владелец лечит сам себя в момент попадания (округляется вниз) — вампирский укус и т.п. Не влияет на цель,
+    // только на атакующего; требует у владельца своего HealthComponent, иначе просто ничего не лечит.
+    // onAttackStarted/onHit — необязательные колбэки (nullptr по умолчанию, как раньше) для визуальных эффектов
+    // снаружи (например, Boss.cpp вешает сюда спавн VFX телеграфа/разряда) — отдельные от consumeJustStarted(),
+    // потому что тот "забирающий" флаг и не может быть опрошен из двух мест сразу (ActorAnimationComponent уже
+    // потребляет его для тела). onAttackStarted зовётся сразу при начале удара с позицией ВЛАДЕЛЬЦА (тот же
+    // момент, что взводит m_justStarted), onHit — в момент реального попадания с позицией ЦЕЛИ, уже после брони/
+    // неуязвимости.
     AttackComponent(std::string label, int damage, float range, sf::Time cooldown, bool autoAttack,
         sf::Time hitDelay = sf::Time::Zero, std::function<bool(GameObject*)> targetFilter = nullptr, bool requireTarget = true,
-        bool omnidirectional = false);
+        bool omnidirectional = false, float lifestealFraction = 0.f,
+        std::function<void(sf::Vector2f)> onAttackStarted = nullptr, std::function<void(sf::Vector2f)> onHit = nullptr);
 
     void update(sf::Time dt) override;
 
@@ -55,6 +65,9 @@ public:
 
 private:
     void resolvePendingHit();
+    // Общий хвост фактического попадания (урон + лог + лайфстил + onHit) — используется и немедленным ударом
+    // (hitDelay==0), и отложенным (resolvePendingHit), раньше было продублировано дословно в обоих местах.
+    void applyHit(HealthComponent* target, GameObject* owner);
 
     std::string m_label;
     int m_damage;
@@ -75,4 +88,7 @@ private:
     HealthComponent* m_pendingTarget = nullptr;
 
     std::function<bool(GameObject*)> m_targetFilter;
+    float m_lifestealFraction;
+    std::function<void(sf::Vector2f)> m_onAttackStarted;
+    std::function<void(sf::Vector2f)> m_onHit;
 };

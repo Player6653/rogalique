@@ -168,6 +168,8 @@
     <ClInclude Include="TargetFinder.h" />
     <ClInclude Include="Projectile.h" />
     <ClInclude Include="ProjectileComponent.h" />
+    <ClInclude Include="VisualEffect.h" />
+    <ClInclude Include="SpawnFadeComponent.h" />
     <ClInclude Include="HitFlashComponent.h" />
     <ClInclude Include="TransientComponent.h" />
     <ClInclude Include="HealthBarComponent.h" />
@@ -177,9 +179,12 @@
     <ClInclude Include="ParticleSystem.h" />
     <ClInclude Include="ParticleSystemComponent.h" />
     <ClInclude Include="ArmorBadgeComponent.h" />
+    <ClInclude Include="LowHealthScreenFlashComponent.h" />
+    <ClInclude Include="ScreenFadeComponent.h" />
     <ClInclude Include="ColliderGrid.h" />
     <ClInclude Include="FocusedInput.h" />
     <ClInclude Include="TextInputBuffer.h" />
+    <ClInclude Include="MouseWheelBuffer.h" />
     <ClInclude Include="NameEntryInput.h" />
     <ClInclude Include="NameEntryOverlayComponent.h" />
     <ClInclude Include="HudTextComponent.h" />
@@ -224,6 +229,8 @@
     <ClCompile Include="TargetFinder.cpp" />
     <ClCompile Include="Projectile.cpp" />
     <ClCompile Include="ProjectileComponent.cpp" />
+    <ClCompile Include="VisualEffect.cpp" />
+    <ClCompile Include="SpawnFadeComponent.cpp" />
     <ClCompile Include="HitFlashComponent.cpp" />
     <ClCompile Include="HealthBarComponent.cpp" />
     <ClCompile Include="FractionBarComponent.cpp" />
@@ -232,9 +239,12 @@
     <ClCompile Include="ParticleSystem.cpp" />
     <ClCompile Include="ParticleSystemComponent.cpp" />
     <ClCompile Include="ArmorBadgeComponent.cpp" />
+    <ClCompile Include="LowHealthScreenFlashComponent.cpp" />
+    <ClCompile Include="ScreenFadeComponent.cpp" />
     <ClCompile Include="ColliderGrid.cpp" />
     <ClCompile Include="FocusedInput.cpp" />
     <ClCompile Include="TextInputBuffer.cpp" />
+    <ClCompile Include="MouseWheelBuffer.cpp" />
     <ClCompile Include="NameEntryOverlayComponent.cpp" />
     <ClCompile Include="HudTextComponent.cpp" />
     <ClCompile Include="NavGrid.cpp" />

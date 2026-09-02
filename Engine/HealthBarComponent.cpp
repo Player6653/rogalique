@@ -34,26 +34,47 @@ HealthBarComponent::HealthBarComponent(
     sf::Vector2u textureSize = m_frameTexture.getSize();
     m_frameSprite.setScale(m_size.x / static_cast<float>(textureSize.x), m_size.y / static_cast<float>(textureSize.y));
 
+    rebuildSegments();
+}
+
+void HealthBarComponent::rebuildSegments()
+{
+    m_segments.clear();
+    m_segmentLocalOffsets.clear();
+
+    int maxHp = m_target.getMaxHp();
+    m_lastKnownMaxHp = maxHp;
+    if (maxHp <= 0) {
+        return;
+    }
+
     // Деления кладём внутрь заполняемой середины рамки, а не поверх декоративных краёв.
     float innerLeft = m_size.x * LEFT_INSET_RATIO;
     float innerRight = m_size.x * (1.f - RIGHT_INSET_RATIO);
     float innerWidth = innerRight - innerLeft;
     float verticalInset = m_size.y * VERTICAL_INSET_RATIO;
 
-    int maxHp = m_target.getMaxHp();
-    if (maxHp > 0) {
-        float segmentWidth = (innerWidth - SEGMENT_GAP * (maxHp - 1)) / static_cast<float>(maxHp);
-        segmentWidth = std::max(1.f, segmentWidth);
-        for (int i = 0; i < maxHp; ++i) {
-            sf::RectangleShape segment(sf::Vector2f(segmentWidth, m_size.y - verticalInset * 2.f));
-            m_segments.push_back(segment);
-            m_segmentLocalOffsets.emplace_back(innerLeft + i * (segmentWidth + SEGMENT_GAP), verticalInset);
-        }
+    float segmentWidth = (innerWidth - SEGMENT_GAP * (maxHp - 1)) / static_cast<float>(maxHp);
+    segmentWidth = std::max(1.f, segmentWidth);
+    for (int i = 0; i < maxHp; ++i) {
+        sf::RectangleShape segment(sf::Vector2f(segmentWidth, m_size.y - verticalInset * 2.f));
+        m_segments.push_back(segment);
+        m_segmentLocalOffsets.emplace_back(innerLeft + i * (segmentWidth + SEGMENT_GAP), verticalInset);
+    }
+    // Новые сегменты только что созданы без позиции (RectangleShape по умолчанию на (0,0)) — onOwnerMoved()
+    // применит owner-позицию + офсеты на следующем кадре, но update()/draw() этого же кадра увидят их на (0,0),
+    // если не выставить сразу здесь.
+    for (std::size_t i = 0; i < m_segments.size(); ++i) {
+        m_segments[i].setPosition(m_ownerPosition + m_segmentLocalOffsets[i]);
     }
 }
 
 void HealthBarComponent::update(sf::Time dt)
 {
+    if (m_target.getMaxHp() != m_lastKnownMaxHp) {
+        rebuildSegments();
+    }
+
     int hp = m_target.getHp();
     for (std::size_t i = 0; i < m_segments.size(); ++i) {
         bool alive = static_cast<int>(i) < hp;

@@ -26,10 +26,16 @@ public:
     // а не прицельно; если и facing нулевой (совсем без направления) — тогда правда не стреляет, стрелять некуда.
     // projectileFrameCount>1 — снаряд анимированный (см. Projectile), projectileFrameDuration задаёт скорость этой
     // анимации; по умолчанию 1 кадр — статичная текстура (как у стрелы лучника, поведение не меняется).
+    // onShotStarted — необязательный колбэк (nullptr по умолчанию), зовётся с позицией владельца сразу при старте
+    // выстрела (тем же моментом, что взводит m_justFired) — отдельный от consumeJustFired() по той же причине, что
+    // у AttackComponent::onAttackStarted (тот "забирающий" флаг уже потребляет ActorAnimationComponent для тела).
+    // Нужен, например, визуальному эффекту заряда: shotDelay — окно между стартом и реальным появлением снаряда,
+    // ровно то время, что должен идти "заряд". onImpact — прокидывается дальше в Projectile (см. его комментарий).
     RangedAttackComponent(std::string label, int damage, float minRange, float maxRange, sf::Time cooldown, float projectileSpeed,
         float projectileHitRadius, std::string projectileTexturePath, sf::Vector2f projectileVisualSize,
         sf::Time shotDelay = sf::Time::Zero, std::function<bool(GameObject*)> targetFilter = nullptr, bool autoFire = true,
-        bool requireTarget = true, int projectileFrameCount = 1, sf::Time projectileFrameDuration = sf::Time::Zero);
+        bool requireTarget = true, int projectileFrameCount = 1, sf::Time projectileFrameDuration = sf::Time::Zero,
+        std::function<void(sf::Vector2f)> onShotStarted = nullptr, std::function<void(sf::Vector2f)> onImpact = nullptr);
 
     void update(sf::Time dt) override;
 
@@ -89,4 +95,7 @@ private:
     bool m_requireTarget;
 
     bool m_justFired = false;
+
+    std::function<void(sf::Vector2f)> m_onShotStarted;
+    std::function<void(sf::Vector2f)> m_onImpact;
 };

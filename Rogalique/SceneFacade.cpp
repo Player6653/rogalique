@@ -4,8 +4,10 @@
 #include "ArrowCrate.h"
 #include "AudioSystem.h"
 #include "Boss.h"
+#include "BossTeleportComponent.h"
 #include "CameraComponent.h"
 #include "HealthChangeFeedbackComponent.h"
+#include "ParticleSystem.h"
 #include "ParticleSystemComponent.h"
 #include "Chest.h"
 #include "ChestComponent.h"
@@ -27,6 +29,7 @@
 #include "FractionBarComponent.h"
 #include "HealthComponent.h"
 #include "HudTextComponent.h"
+#include "IAnimatedActor.h"
 #include "ToastNotificationComponent.h"
 #include "InputComponent.h"
 #include "InventoryComponent.h"
@@ -34,8 +37,10 @@
 #include "ItemDefinition.h"
 #include "ItemPickup.h"
 #include "ItemPickupComponent.h"
+#include "KillStreakComponent.h"
 #include "Leaderboard.h"
 #include "Log.h"
+#include "LowHealthScreenFlashComponent.h"
 #include "MenuOverlayComponent.h"
 #include "NameEntryOverlayComponent.h"
 #include "PauseToggleComponent.h"
@@ -45,7 +50,9 @@
 #include "PlayerDeathComponent.h"
 #include "RenderSystem.h"
 #include "SavePaths.h"
+#include "ScreenFadeComponent.h"
 #include "SettingsOverlayComponent.h"
+#include "SpawnFadeComponent.h"
 #include "Slime.h"
 #include "SlimeShotLimitComponent.h"
 #include "Soldier.h"
@@ -55,6 +62,7 @@
 #include "TiledLevel.h"
 #include "TransientComponent.h"
 #include "Trap.h"
+#include "VampireSpawnMinion.h"
 #include "WeaponComponent.h"
 #include <algorithm>
 #include <cmath>
@@ -70,6 +78,10 @@
 namespace
 {
     constexpr float TILE_SIZE = 48.f;
+
+    // См. использование у ArenaWaveComponent::victoryDelay ниже — экран победы ждёт, пока доиграет анимация
+    // смерти босса (Boss.cpp: DEATH_FRAME_COUNT=57 кадров по 0.04с ≈ 2.28с), а не появляется на первом кадре.
+    const sf::Time BOSS_VICTORY_DELAY = sf::seconds(2.4f);
 
     // Порядок слотов экипировки в оверлее инвентаря (см. InventoryOverlayComponent) — рамка каждого слота
     // называется по этому же имени (Resources/GUI/Frame_<имя>.png). Индекс в этом массиве == индекс слота,
@@ -107,7 +119,7 @@ namespace
         std::vector<sf::Vector2f> extraEnemyPositions;
         // Тот же индекс, что и в extraEnemyPositions выше — вид конкретного "лишнего" бота, если он известен
         // (пришёл из дубликата FixedEnemy — см. buildLevelContent), иначе пустая строка (анонимное переполнение
-        // EnemySlot — какой слайм туда сядет, решает цикл в run(), как и раньше). Раньше дубликаты
+        // EnemySlot — какой слайм туда сядет, решает цикл в run(), как и раньше). См. игрока: раньше дубликаты
         // FixedEnemy всегда превращались в случайного слайма, даже если в Tiled стоял orc/soldier.
         std::vector<std::string> extraEnemyKinds;
         std::vector<sf::Vector2f> itemPositions;
@@ -231,6 +243,26 @@ namespace
     {
         object.resetComponents();
         object.setPosition(spawnPosition);
+    }
+
+    // Длительность плавного проявления только что заспавненного бойца волны арены (см. spawnEnemy у
+    // ArenaWaveComponent ниже) и пауза между появлением бойцов ОДНОЙ волны — раньше все они появлялись мгновенно и
+    // всем составом разом.
+    const sf::Time ARENA_SPAWN_FADE_DURATION = sf::seconds(0.4f);
+    const sf::Time ARENA_SPAWN_STAGGER = sf::seconds(0.3f);
+
+    // Вешает SpawnFadeComponent (Engine) на тело+тень только что заспавненного бойца — общий хвост для боевой и
+    // обычной веток spawnEnemy у ArenaWaveComponent ниже, не завязан на конкретный вид существа (любой актёр,
+    // реализующий IAnimatedActor — Enemy/Soldier/Slime/Boss/VampireSpawnMinion, все они его уже реализуют).
+    void attachSpawnFade(GameObject* actor)
+    {
+        if (!actor) {
+            return;
+        }
+        if (auto* animated = dynamic_cast<IAnimatedActor*>(actor)) {
+            actor->addComponent<SpawnFadeComponent>(animated->getBodySprite(), ARENA_SPAWN_FADE_DURATION);
+            actor->addComponent<SpawnFadeComponent>(animated->getShadowSprite(), ARENA_SPAWN_FADE_DURATION);
+        }
     }
 
     // Либо ставит позицию/HP из сохранения (если для этого актёра там есть данные — см. GameMemento::hasXData()),
@@ -562,10 +594,9 @@ void SceneFacade::run()
         sf::Vector2f arrowCratePosition = playerSpawn;
         GameObject* doorObject = nullptr;
 
-        // Арена волн — простой прямоугольный зал, весь построен кодом, не через Tiled (проще держать в коде,
-        // чем городить отдельную Tiled-карту под один зал). Стоит далеко в стороне от обычного подземелья
-        // (после ARENA_GAP_TILES тайлов зазора без пола/стен между ними) — дойти туда пешком нельзя, только
-        // телепортом при открытии двери (см.
+        // Арена волн — простой прямоугольный зал, весь построен кодом, не через Tiled (осознанное решение: код,
+        // просто зал). Стоит далеко в стороне от обычного подземелья (после ARENA_GAP_TILES тайлов зазора без
+        // пола/стен между ними) — дойти туда пешком нельзя, только телепортом при открытии двери (см.
         // DoorComponent::setOnOpened дальше в этой функции). Позиция арены зависит от ширины подземелья
         // (arenaOffsetXTiles), а та меняется при каждой пересборке формы — поэтому вся геометрия арены ниже
         // такое же состояние, пересчитываемое той же лямбдой, что и само подземелье, а не константа.
@@ -765,7 +796,7 @@ void SceneFacade::run()
                 arenaOrigin.x + ARENA_SIZE_TILES * TILE_SIZE / 2.f, arenaOrigin.y + ARENA_SIZE_TILES * TILE_SIZE / 2.f);
             arenaPlayerEntry = sf::Vector2f(arenaCenter.x, arenaOrigin.y + (ARENA_SIZE_TILES - 4) * TILE_SIZE);
 
-            // Пара укрытий внутри арены (стены, за которые можно убегать и отсиживаться) — по 2x2 клетки,
+            // Пара укрытий внутри арены (стены, за которые можно убегать и кайтить) — по 2x2 клетки,
             // симметрично по диагонали от центра, тем же способом, что и внешние стены (клетка + коллайдер).
             // Позиции подобраны так, чтобы НЕ попадать ни в точку входа игрока, ни в кольцо спавна волны, ни в
             // точки аптечек/щита/ящика (см. AVOID_MIN_DISTANCE ниже — те же самые точки, от которых отодвигается
@@ -807,8 +838,8 @@ void SceneFacade::run()
             {
                 constexpr int SPAWN_POINT_COUNT = 12;
                 // С запасом больше любого актёра — гарантирует, что боец волны не заспавнится вплотную/поверх
-                // игрока, вещи на карте или укрытия сразу после телепорта (был шанс застрять внутри бота —
-                // тот же баг оказался и у ящика: кольцо спавна и позиция ящика по чистой случайности
+                // игрока, вещи на карте или укрытия сразу после телепорта (был баг — шанс застрять в
+                // боте; тот же баг оказался и у ящика: кольцо спавна и позиция ящика по чистой случайности
                 // совпадали математически, боец спавнился ровно НА ящике).
                 constexpr float AVOID_MIN_DISTANCE = 250.f;
                 // Все точки, вокруг которых нельзя спавнить бойца волны — раньше проверялась только точка входа
@@ -856,7 +887,7 @@ void SceneFacade::run()
                     // но не единственный: если рядом с исходной точкой кольца сразу два avoidPoints, оба
                     // отталкивания складываются в ту же сторону), а кольцо само по себе уже стоит недалеко от
                     // стен (radius=0.3*ARENA_SIZE_TILES*TILE_SIZE) — суммарный сдвиг мог вытолкнуть точку ЗА
-                    // внутреннюю грань стены (боты спавнились прямо в стенах слева и справа — ровно
+                    // внутреннюю грань стены (был баг — боты спавнились в стенах слева и справа, ровно
                     // восток/запад, где и стоят ящик/щит, чьё отталкивание туда и толкает). Поджимаем обратно
                     // внутрь зала явным клампом — надёжнее, чем подбирать AVOID_MIN_DISTANCE/radius под размер
                     // конкретной арены.
@@ -950,6 +981,25 @@ void SceneFacade::run()
         root.addChild(std::make_unique<GameObject>(sf::Vector2f(0.f, 0.f)))
             .addComponent<ParticleSystemComponent>();
 
+        // Награда за серию убийств в подземелье: каждые 5 убитых ботов подземелья (не считая
+        // детей деления Slime2 — они не самостоятельная угроза, а бонус за уже засчитанного родителя, и не считая
+        // вообще ничего на арене волн — см. KillStreakComponent.h) дают +1 к максимуму HP игрока. dungeonKillStreak
+        // — счётчик 0..4 к текущей "пятёрке", а не общее число убийств за забег; обнуляется вместе с HealthComponent
+        // при полном ребуте (см. performFullReroll/returnToMainMenu ниже) и персистится в сейв (см. GameMemento::
+        // hasKillStreakData).
+        int dungeonKillStreak = 0;
+        auto onDungeonKill = [&dungeonKillStreak, playerHealth] {
+            if (!playerHealth) {
+                return;
+            }
+            constexpr int KILLS_PER_BONUS = 5;
+            ++dungeonKillStreak;
+            if (dungeonKillStreak >= KILLS_PER_BONUS) {
+                dungeonKillStreak = 0;
+                playerHealth->increaseMaxHp(1);
+            }
+        };
+
         // Пять ботов — по одному в каждый из пяти заготовленных слотов-комнат (см. LevelContent), какой именно
         // бот в какой комнате — решает buildLevelContent(seed), см. её же для порядка (0=Enemy,1=Soldier,
         // 2..4=Slime1-3), который здесь используется как есть.
@@ -958,6 +1008,9 @@ void SceneFacade::run()
         sf::Vector2f enemyPosition = levelContent.enemyPositions[0];
         auto enemy = std::make_unique<Enemy>(enemyPosition, sf::Vector2f(32.f, 32.f), 140.f, 220.f);
         HealthComponent* enemyHealth = enemy->getComponent<HealthComponent>();
+        if (enemyHealth) {
+            enemy->addComponent<KillStreakComponent>(*enemyHealth, onDungeonKill);
+        }
         GameObject& enemyObject = actorsContainer.addChild(std::move(enemy));
 
         // Второй враг: держит дистанцию и бьёт из лука, а вплотную переходит на меч (см. Soldier.cpp).
@@ -965,6 +1018,9 @@ void SceneFacade::run()
         auto soldier = std::make_unique<Soldier>(soldierPosition, sf::Vector2f(32.f, 32.f), 120.f, 280.f);
         HealthComponent* soldierHealth = soldier->getComponent<HealthComponent>();
         SoldierAmmoComponent* soldierAmmo = soldier->getComponent<SoldierAmmoComponent>();
+        if (soldierHealth) {
+            soldier->addComponent<KillStreakComponent>(*soldierHealth, onDungeonKill);
+        }
         GameObject& soldierObject = actorsContainer.addChild(std::move(soldier));
 
         // Ящик со стрелами — бесконечная станция пополнения и для Soldier (см. SoldierAmmoComponent), и для
@@ -983,6 +1039,9 @@ void SceneFacade::run()
         sf::Vector2f slimePosition = levelContent.enemyPositions[2];
         auto slime = std::make_unique<Slime>(slimePosition, sf::Vector2f(28.f, 28.f), 90.f, 220.f, slime1Config);
         HealthComponent* slimeHealth = slime->getComponent<HealthComponent>();
+        if (slimeHealth) {
+            slime->addComponent<KillStreakComponent>(*slimeHealth, onDungeonKill);
+        }
         GameObject& slimeObject = actorsContainer.addChild(std::move(slime));
 
         SlimeConfig slime2Config;
@@ -992,6 +1051,11 @@ void SceneFacade::run()
         sf::Vector2f slime2Position = levelContent.enemyPositions[3];
         auto slime2 = std::make_unique<Slime>(slime2Position, sf::Vector2f(28.f, 28.f), 90.f, 220.f, slime2Config);
         HealthComponent* slime2Health = slime2->getComponent<HealthComponent>();
+        if (slime2Health) {
+            // Считается сам Slime2 (родитель) — его дети от деления (см. SlimeSplitComponent) не получают
+            // KillStreakComponent вовсе, они не самостоятельная угроза, а бонус за уже засчитанного родителя.
+            slime2->addComponent<KillStreakComponent>(*slime2Health, onDungeonKill);
+        }
         GameObject& slime2Object = actorsContainer.addChild(std::move(slime2));
 
         SlimeConfig slime3Config;
@@ -1004,6 +1068,9 @@ void SceneFacade::run()
         auto slime3 = std::make_unique<Slime>(slime3Position, sf::Vector2f(28.f, 28.f), 90.f, 220.f, slime3Config);
         HealthComponent* slime3Health = slime3->getComponent<HealthComponent>();
         SlimeShotLimitComponent* slime3ShotLimit = slime3->getComponent<SlimeShotLimitComponent>();
+        if (slime3Health) {
+            slime3->addComponent<KillStreakComponent>(*slime3Health, onDungeonKill);
+        }
         GameObject& slime3Object = actorsContainer.addChild(std::move(slime3));
 
         // "Лишние" EnemySlot сверх пяти именных ботов (см. LevelContent::extraEnemyPositions) — вместо того чтобы
@@ -1032,6 +1099,9 @@ void SceneFacade::run()
                     cfg.childSpawnParent = &actorsContainer;
                     extra = std::make_unique<Slime>(extraEnemyPositions[i], sf::Vector2f(28.f, 28.f), 90.f, 220.f, cfg);
                 }
+                if (auto* extraHealth = extra->getComponent<HealthComponent>()) {
+                    extra->addComponent<KillStreakComponent>(*extraHealth, onDungeonKill);
+                }
                 extraEnemies.push_back(&actorsContainer.addChild(std::move(extra)));
             }
         };
@@ -1058,8 +1128,8 @@ void SceneFacade::run()
         // Первые восемь — все восемь экипируемых категорий разом (гарантия, что каждая есть на карте), остальное —
         // расходники россыпью, дубли разрешены явно. FixedItem — конкретный предмет в конкретной точке (см. разбор
         // объектов в rebuildLevelGeometry), без рандома, вдобавок к ItemSlot-рассыпи. Аптечки/щит/ящик на арене —
-        // по четырём углам площадки и у западной стены, а не в одну кучу, но всё равно за пределами кольца
-        // спавна волны (arenaSpawnPoints) и подальше от arenaPlayerEntry.
+        // по четырём углам площадки и у западной стены, а не в одну кучу, но всё равно за пределами кольца спавна
+        // волны (arenaSpawnPoints) и подальше от arenaPlayerEntry.
         // Одна лямбда на все три группы (как и spawnAllExtras выше) — count/позиции ItemSlot/FixedItem зависят от
         // формы уровня, пересборка сносит и создаёт заново, а не просто переставляет.
         const char* itemIds[] = {"shield", "crossbow", "helmet", "chestplate", "pants", "boots", "ring", "necklace",
@@ -1147,34 +1217,67 @@ void SceneFacade::run()
                 {{"soldier", 4}, {"orc", 6}},
                 {{"boss", 1}},
             },
-            // Разная музыка на каждую волну — свой трек под каждую из трёх обычных; у волны босса
-            // пока нет своего (заглушка, см. Boss.h) — пустая строка не переключает музыку, доигрывает wave3.wav.
-            std::vector<std::string>{
-                "Resources/Sounds/wave1.wav", "Resources/Sounds/wave2.wav", "Resources/Sounds/wave3.wav", ""},
+            // Разная музыка на каждую волну — свой трек под каждую из четырёх, включая отдельный
+            // boss.wav на волну босса.
+            std::vector<std::string>{"Resources/Sounds/wave1.wav", "Resources/Sounds/wave2.wav", "Resources/Sounds/wave3.wav",
+                "Resources/Sounds/boss.wav"},
             arenaSpawnPoints,
-            [&actorsContainer, slime1Config, slime2Config, slime3Config](
+            [&actorsContainer, slime1Config, slime2Config, slime3Config, &arenaCameraBounds](
                 const std::string& kind, sf::Vector2f position) -> GameObject* {
                 // TransientComponent — тот же приём, что у детей деления слизи: полный ребут уровня ("В главное
                 // меню"/"Начать заново"/загрузка, см. destroyTransientChildren() ниже по коду) должен убирать
                 // бойцов волны вместе со всем остальным динамически заспавненным, а не оставлять их висеть в
                 // actorsContainer навсегда.
                 if (kind == "boss") {
-                    // Подкрепление босса — обычные Slime1 (see slime1Config), заспавненные тем же приёмом
-                    // (TransientComponent + GameWorld::spawnIn), что и сам босс и остальные бойцы волны —
-                    // BossMinionSummonComponent просто зовёт эту фабрику по своему таймеру (см. Boss.cpp).
-                    SlimeConfig minionConfig = slime1Config;
-                    minionConfig.childSpawnParent = &actorsContainer;
-                    auto spawnMinion = [&actorsContainer, minionConfig](sf::Vector2f minionPosition) -> GameObject* {
-                        auto minion = std::make_unique<Slime>(minionPosition, sf::Vector2f(28.f, 28.f), 90.f, 220.f, minionConfig);
+                    // Подкрепление босса — VampireSpawnMinion (та же тема пака, что и у самого босса, см. Boss.cpp),
+                    // заспавненные тем же приёмом (TransientComponent + GameWorld::spawnIn), что и сам босс и
+                    // остальные бойцы волны — BossMinionSummonComponent просто зовёт эту фабрику по своему таймеру.
+                    auto spawnMinion = [&actorsContainer](sf::Vector2f minionPosition) -> GameObject* {
+                        static std::mt19937 minionRng{std::random_device{}()};
+                        bool feminine = minionRng() % 2 == 0;
+                        auto minion = std::make_unique<VampireSpawnMinion>(
+                            minionPosition, sf::Vector2f(28.f, 28.f), 90.f, 220.f, feminine);
                         minion->addComponent<TransientComponent>();
                         GameObject* rawMinion = minion.get();
                         GameWorld::instance().spawnIn(actorsContainer, std::move(minion));
                         return rawMinion;
                     };
-                    auto boss = std::make_unique<Boss>(position, sf::Vector2f(96.f, 96.f), 70.f, 260.f, spawnMinion);
+                    // Коллайдер (не VISUAL_SIZE, тот отдельно и больше — см. Boss.cpp) — АТАКА игрока/босса меряет
+                    // дистанцию между ЦЕНТРАМИ GameObject (см. AttackComponent::findTarget), коллайдер сюда не
+                    // входит вовсе, но ФИЗИЧЕСКИ подойти ближе, чем сумма половин коллайдеров игрока (32x32) и
+                    // босса, тоже нельзя — с прежними 96x96 это давало ~64px минимальной дистанции против
+                    // PLAYER_ATTACK_RANGE=56 (Player.cpp), и удар мечом физически не мог долететь (был баг —
+                    // удары не проходили). 84x84 — крупнее прежних 64x64 (коллайдер визуально терялся на фоне
+                    // VISUAL_SIZE=192x192) — вместе с
+                    // увеличенным PLAYER_ATTACK_RANGE=70 (см. Player.cpp) по-прежнему с запасом умещается в
+                    // дистанцию удара (~58px минимум против 70px дальности).
+                    // Спавнится не на случайной точке из arenaSpawnPoints (см. position-параметр), а строго в
+                    // центре арены — эффектнее, чем появление где-то на случайной точке.
+                    sf::Vector2f arenaCenter(arenaCameraBounds.left + arenaCameraBounds.width / 2.f,
+                        arenaCameraBounds.top + arenaCameraBounds.height / 2.f);
+                    // Скорость 130, не 70 (буст сложности) — раньше был
+                    // медленнее любого рядового врага (Enemy=140/Soldier=120/Slime=90, см. вызовы выше), теперь
+                    // сопоставим с Soldier, ощутимо быстрее, но всё ещё чуть медленнее орка/игрока.
+                    auto boss = std::make_unique<Boss>(arenaCenter, sf::Vector2f(84.f, 84.f), 130.f, 260.f, spawnMinion);
+                    // Эффект появления — тот же приём и цвет, что и у телепорта (см. BossTeleportComponent), чтобы
+                    // визуально читалось как одна и та же "магия босса", а не два разных случайных эффекта.
+                    ParticleSystem::instance().spawnBurst(
+                        arenaCenter, 30, sf::Color(170, 60, 210), 60.f, 180.f, 3.f, 7.f, sf::seconds(0.6f));
+                    // "Фаза ярости" на низком HP — телепорт в случайную точку арены, с отступом в 2 тайла от стен
+                    // (та же логика, что у ARENA_ITEM_MARGIN_TILES выше), чтобы не телепортировало прямо в стену.
+                    // Порог 30% (было 20%) и интервал 6с (было 10с) — буст сложности, фаза ярости включается
+                    // раньше и телепортирует чаще.
+                    if (auto* bossHealth = boss->getComponent<HealthComponent>()) {
+                        constexpr float ARENA_WALL_MARGIN = 2.f * TILE_SIZE;
+                        sf::FloatRect teleportBounds(arenaCameraBounds.left + ARENA_WALL_MARGIN,
+                            arenaCameraBounds.top + ARENA_WALL_MARGIN, arenaCameraBounds.width - 2.f * ARENA_WALL_MARGIN,
+                            arenaCameraBounds.height - 2.f * ARENA_WALL_MARGIN);
+                        boss->addComponent<BossTeleportComponent>(*bossHealth, 0.3f, sf::seconds(6.f), teleportBounds);
+                    }
                     boss->addComponent<TransientComponent>();
                     GameObject* rawBoss = boss.get();
                     GameWorld::instance().spawnIn(actorsContainer, std::move(boss));
+                    attachSpawnFade(rawBoss);
                     return rawBoss;
                 }
                 std::unique_ptr<GameObject> enemy
@@ -1186,17 +1289,18 @@ void SceneFacade::run()
                 enemy->addComponent<TransientComponent>();
                 GameObject* raw = enemy.get();
                 GameWorld::instance().spawnIn(actorsContainer, std::move(enemy));
+                attachSpawnFade(raw);
                 return raw;
             },
             [&nameEntryOverlay, &gameTimer] {
                 // false — не зацикливать: win.wav не короткий джингл, а полноценный трек, доиграет один раз и
-                // затихнет сам, пока игрок читает экран победы (файл раньше лежал неиспользуемым).
+                // затихнет сам, пока игрок читает экран победы (win.wav раньше лежал неиспользуемым).
                 AudioSystem::instance().playMusic("Resources/Sounds/win.wav", false);
                 GameWorld::instance().setVictory(true);
-                // В отличие от isGameOver() (тот нарочно НЕ ставит мир на паузу — см. класс-комментарий
-                // PlayerDeathComponent.h, чтобы доиграла анимация смерти), у победы нет ничего похожего, что
-                // нужно доиграть — раньше мир так и оставался разблокированным, игрок мог бегать и драться прямо
-                // под экраном победы (был баг).
+                // Мир ставим на паузу только теперь — анимация смерти босса уже доиграла ДО этого вызова (см.
+                // BOSS_VICTORY_DELAY ниже и класс-комментарий victoryDelay в ArenaWaveComponent.h), так что здесь,
+                // в отличие от isGameOver() (тот нарочно не ставит мир на паузу сразу — см. PlayerDeathComponent.h),
+                // ничего доигрывать уже не нужно.
                 GameWorld::instance().setPaused(true);
                 // Экран победы с "Играть заново"/"В главное меню" (см. victoryItems дальше) открывается только
                 // ПОСЛЕ того, как имя введено (см. victoryNameEntered/onConfirm выше) — сразу показываем именно
@@ -1206,7 +1310,15 @@ void SceneFacade::run()
                     "Введите имя для таблицы лидеров:",
                 });
                 LOG_INFO("ArenaWaveComponent: все волны выбиты — победа");
-            });
+            },
+            // Пауза перед экраном победы — успевает доиграть анимация смерти босса (Boss.cpp: DEATH_FRAME_COUNT=57
+            // кадров по 0.04с ≈ 2.28с), а не обрывается на первом кадре внезапно появившимся экраном победы (по
+            // просьбе игрока). Небольшой запас (2.4с) на случай, если кадр начал играть не с самого начала update().
+            BOSS_VICTORY_DELAY,
+            // Разброс появления бойцов ОДНОЙ волны во времени (см. класс-комментарий spawnStagger в
+            // ArenaWaveComponent.h) — вместе с attachSpawnFade() выше даёт эффект "волна затекает", а не
+            // мгновенно материализуется целиком.
+            ARENA_SPAWN_STAGGER);
         root.addChild(std::move(arenaWaveObject));
 
         // Дверь открывается (см. DoorComponent::update()) — вместо мгновенной победы (как было раньше, 2 ключа)
@@ -1228,7 +1340,7 @@ void SceneFacade::run()
             doorComponent->setOnOpened(
                 [&playerObject, &arenaWaves, arenaPlayerEntry, camera, arenaCameraBounds, &currentLocation] {
                     // Свои границы у арены (см. arenaCameraBounds выше) — не общие с подземельем, так что размер
-                    // арены не обязан быть больше самого широкого экрана (был баг с камерой раньше).
+                    // арены не обязан быть больше самого широкого экрана (был баг с камерой на этом месте).
                     if (camera) {
                         camera->setBounds(arenaCameraBounds);
                     }
@@ -1279,7 +1391,7 @@ void SceneFacade::run()
         };
 
         // Полный рандомный перезапуск — и формы уровня, и содержимого, каждый под свой свежий std::random_device
-        // (был баг — рандом не рандомил локации при перезапуске уровня). Общий хвост для кнопок "Начать" и
+        // (иначе рандом не рандомил локации при перезапуске уровня). Общий хвост для кнопок "Начать" и
         // "Играть заново" — раньше он был продублирован в обеих почти дословно.
         auto performFullReroll = [&] {
             std::random_device shapeDevice;
@@ -1290,6 +1402,13 @@ void SceneFacade::run()
             rerollContent(contentDevice());
             // Свежий уровень — всегда подземелье, арена ещё не открыта (см. Location.h).
             currentLocation = Location::Dungeon;
+            // Новый забег — награда за прошлую серию убийств (см. KillStreakComponent/onDungeonKill выше) не
+            // переживает его: явно откатываем здесь, а не полагаемся на playerObject.resetComponents() у
+            // "В главное меню" — "Играть заново" (см. кнопку ниже) сюда идёт напрямую с экрана победы, минуя тот путь.
+            dungeonKillStreak = 0;
+            if (playerHealth) {
+                playerHealth->reset();
+            }
         };
 
         // Если сейв был сделан при другой форме уровня — пересобирает её под тот же сид, что и при сохранении, и
@@ -1343,6 +1462,9 @@ void SceneFacade::run()
             "Враги",
             "@Zerie",
             "",
+            "Босс",
+            "@ElectricLemon",
+            "",
             "Музыка",
             "@Bocuma",
         };
@@ -1352,7 +1474,7 @@ void SceneFacade::run()
 
         // Экран Помощь — четыре страницы: управление, противники, предметы, цель игры; листаются стрелками или
         // Left/Right. Обновлено под текущее состояние игры (4 ключа/дверь/арена волн, актуальные урон/HP/прочность
-        // — старый текст остался от версии до брони-через-экипировку и до арены). CreditsOverlayComponent
+        // — старый текст оставался от версии до брони-через-экипировку и до арены). CreditsOverlayComponent
         // сам переносит длинные строки по словам под ширину панели (см. Engine/CreditsOverlayComponent.cpp) — раньше
         // не переносил вовсе, отсюда и "текст вылезает за края" на странице предметов (самые длинные строки).
         auto helpObject = std::make_unique<GameObject>(sf::Vector2f(0.f, 0.f));
@@ -1361,10 +1483,10 @@ void SceneFacade::run()
             "Shift — спринт (нужны Сапоги)",
             "Ctrl / X — рывок (нужно Кольцо)",
             "Space / C — прыжок",
-            "F / Z — атака копьём / выстрел из арбалета",
-            "Q — сменить оружие",
+            "F / Z / ЛКМ — атака копьём / выстрел из арбалета",
+            "Q / колесо мыши — сменить оружие",
             "R — перезарядка арбалета",
-            "Tab — инвентарь",
+            "Tab / ПКМ — инвентарь (ПКМ и закрывает)",
             "E — взаимодействие (сундук, дверь, находка)",
             "Escape — пауза",
         };
@@ -1374,12 +1496,20 @@ void SceneFacade::run()
             "Игрок — 4 HP, броня только от надетой экипировки",
             "Копьё — урон 2, кулдаун 0.5с",
             "Арбалет — урон 2, 1 болт + 10 запасных, перезарядка 1с",
+            "Смертельный удар при HP > 1 оставляет 1 HP — добить можно только вторым",
+            "Каждые 5 убитых ботов подземелья — +1 к максимуму HP",
             "",
             "Орк — 6 HP, ближний бой, урон удара 2",
             "Лучник — 4 HP, держит дистанцию, лук и меч по 1 урону",
             "Слизь (3 расцветки) — 2 HP, урон 1",
             "Синяя слизь делится надвое при смерти",
             "Огненная слизь плюётся и выдыхается после 15 плевков",
+            "",
+            "Босс (арена, волна 4) — 50 HP, бьёт мечом (3) и магией (2) одновременно",
+            "Изредка кусает (лечит себя на весь урон) или бьёт по площади с заметным замахом",
+            "Изредка стреляет усиленным зарядом или залпом из двух колец снарядов сразу во все стороны",
+            "Призывает подкрепление (Vampire Spawn, 3 HP) каждые 12 секунд боя",
+            "На HP ≤ 30% раз в 6 секунд телепортируется по арене",
         };
         // Компактно, по предмету на строку — что лежит на этом уровне и что делает (см. ItemDefinition.cpp).
         std::vector<std::string> itemsPage = {
@@ -1388,7 +1518,7 @@ void SceneFacade::run()
             "Ржавый ключ, Древний череп (E) — пока просто лежат",
             "Щит(5)/Нагрудник(3)/Штаны(2)/Шлем(1) — блокируют удары по очереди, потом ломаются",
             "Сапоги — открывают спринт (Shift). Кольцо — открывает рывок (Ctrl)",
-            "Ожерелье — пассивная регенерация: +1 HP раз в 8 секунд, пока надето",
+            "Ожерелье — пассивная регенерация: +1 HP раз в 4 секунды, пока надето",
             "Арбалет — второе оружие (Q), 1 болт, перезарядка R",
             "",
             "Клик по предмету в мешке — использовать / надеть",
@@ -1403,6 +1533,7 @@ void SceneFacade::run()
             "Волна 1 — 4 обычные слизи",
             "Волна 2 — 4 синие + 4 огненные слизи",
             "Волна 3 — 4 лучника + 6 орков",
+            "Волна 4 — босс с призывом подкрепления",
             "Следующая волна начинается после зачистки предыдущей",
             "Победа — после разгрома последней волны",
         };
@@ -1524,7 +1655,8 @@ void SceneFacade::run()
                   enemyHealth, soldierHealth, slimeHealth, slime2Health, slime3Health, &soldierPosition, &slimePosition,
                   &slime2Position, &slime3Position, playerInventory, soldierAmmo, slime3ShotLimit, &extraEnemies,
                   &extraEnemyPositions, &arenaWaves, camera, &dungeonCameraBounds, &arenaCameraBounds, &rerollShapeIfNeeded,
-                  &gameTimer, &victoryNameEntered, &currentLocation](const std::string& actionLabel, bool resetActorsFirst) {
+                  &gameTimer, &victoryNameEntered, &currentLocation, &dungeonKillStreak](
+                  const std::string& actionLabel, bool resetActorsFirst) {
                   GameMemento memento;
                   if (!GameMemento::load(savePath(), memento)) {
                       LOG_WARN(actionLabel + ": сохранение не найдено или повреждено");
@@ -1572,12 +1704,38 @@ void SceneFacade::run()
                   // затирал бы это безусловным сбросом здесь (баг: подобранные предметы дублировались в мешке при загрузке).
                   crateObject.resetComponents();
                   resetInteractables();
+                  // Сундуки, уже открытые на момент сохранения (см. GameMemento::getOpenedChests) — resetInteractables()
+                  // выше вернул все сундуки к закрытому виду безусловно, здесь избирательно возвращаем открытыми те,
+                  // что сейв помнит открытыми, БЕЗ повторной выдачи предмета (он уже в bagSlots, см.
+                  // applyInventoryMemento ниже) — иначе открыть их заново после загрузки дублировало бы предмет
+                  // (баг-дубликат, найден при аудите сохранений). Файлы старее этого поля просто оставляют все
+                  // сундуки закрытыми, как было раньше.
+                  if (memento.hasOpenedChestsData()) {
+                      const std::vector<int>& openedChests = memento.getOpenedChests();
+                      std::size_t chestIndex = 0;
+                      for (ChestComponent* chest : GameWorld::instance().getRoot().getComponentsInChildren<ChestComponent>()) {
+                          if (chestIndex < openedChests.size() && openedChests[chestIndex]) {
+                              chest->markOpenedFromSave();
+                          }
+                          ++chestIndex;
+                      }
+                  }
                   for (GameObject* pickup : itemPickups) {
                       pickup->resetComponents();
                   }
 
                   playerObject.setPosition(memento.getPlayerPosition());
                   if (playerHealth) {
+                      // Сбрасываем безусловно — иначе загрузка сейва СТАРЕЕ этого поля унаследовала бы streak,
+                      // оставшийся в памяти от прежнего забега (например, игрок убил пару ботов, вышел в главное
+                      // меню без сохранения, затем загрузил старый сейв без этих данных) вместо честного нуля.
+                      dungeonKillStreak = 0;
+                      // Максимум ДО текущего HP — setHp() прижимает к [0, maxHp], со старым (базовым) максимумом
+                      // сохранённый bonus-hp обрезался бы до него же (баг).
+                      if (memento.hasKillStreakData()) {
+                          playerHealth->setMaxHp(memento.getPlayerMaxHp());
+                          dungeonKillStreak = memento.getDungeonKillStreak();
+                      }
                       playerHealth->setHp(memento.getPlayerHp());
                   }
                   enemyObject.setPosition(memento.getEnemyPosition());
@@ -1594,6 +1752,24 @@ void SceneFacade::run()
                   applyOptionalMemento(slime3Object, slime3Health, slime3Position, memento.hasSlime3Data(),
                       memento.getSlime3Position(), memento.getSlime3Hp());
                   applyExtraEnemiesMemento(extraEnemies, extraEnemyPositions, memento);
+                  // KillStreakComponent видел бы "ожил -> снова умер" (resetComponents() выше оживляет, а setHp()
+                  // только что мог вернуть 0 обратно) как настоящее убийство и засчитывал бы награду за уже давно
+                  // убитого бота на каждую перезагрузку сейва (был баг — фарм +1 maxHP через "Загрузить
+                  // сохранение"). Синхронизируем ПОСЛЕ того, как все HP выше уже приведены к честным, сохранённым
+                  // значениям — единым проходом по всем "настоящим" врагам подземелья (см. KillStreakComponent.h).
+                  auto resyncKillStreak = [](GameObject& obj) {
+                      if (auto* killStreak = obj.getComponent<KillStreakComponent>()) {
+                          killStreak->syncToCurrentState();
+                      }
+                  };
+                  resyncKillStreak(enemyObject);
+                  resyncKillStreak(soldierObject);
+                  resyncKillStreak(slimeObject);
+                  resyncKillStreak(slime2Object);
+                  resyncKillStreak(slime3Object);
+                  for (GameObject* extra : extraEnemies) {
+                      resyncKillStreak(*extra);
+                  }
                   // Мешок+экипировка игрока, боезапас Soldier, счётчик выстрелов Slime3, "уже подобрано" на карте — файлы
                   // старее инвентаря просто ничего тут не меняют (см. applyInventoryMemento).
                   applyInventoryMemento(playerInventory, soldierAmmo, slime3ShotLimit, itemPickups, memento);
@@ -1603,12 +1779,16 @@ void SceneFacade::run()
                   if (!restoredIntoArenaWave) {
                       AudioSystem::instance().playMusic("Resources/Sounds/theme.wav", true);
                   }
-                  // Секундомер и статус "имя для победы уже введено" — общий хвост всех точек входа в игру (см.
-                  // GameTimerComponent.h), не только "Начать": иначе, например, после "Продолжить" таймер продолжал бы
-                  // идти с того значения, что было в момент сохранения БЕЗ реального игрового времени между ними, а
-                  // старый victoryNameEntered=true (если сохранились уже после какой-то прошлой победы) не дал бы
-                  // показаться новому экрану ввода имени вовсе.
+                  // Секундомер — восстанавливаем на значение из сейва (см. GameTimerComponent::setElapsed), а не
+                  // безусловный reset() на ноль: тот позволял бы занижать честное время в таблице лидеров, просто
+                  // пересохранившись прямо перед финишем (баг, найден при проверке сохранения на абьюзы). Файлы
+                  // старее этого поля просто обнуляются, как было раньше. Статус "имя для победы уже введено" —
+                  // общий хвост всех точек входа в игру, не только "Начать": старый victoryNameEntered=true (если
+                  // сохранились уже после какой-то прошлой победы) не дал бы показаться новому экрану ввода имени вовсе.
                   gameTimer.reset();
+                  if (memento.hasElapsedTimeData()) {
+                      gameTimer.setElapsed(sf::seconds(memento.getElapsedSeconds()));
+                  }
                   victoryNameEntered = false;
                   GameWorld::instance().setGameOver(false);
                   GameWorld::instance().setVictory(false);
@@ -1718,7 +1898,8 @@ void SceneFacade::run()
         pauseItems.push_back({"Сохранить",
             [&playerObject, &enemyObject, &soldierObject, &slimeObject, &slime2Object, &slime3Object, &itemPickups,
                 &activeContentSeed, &activeShapeSeed, playerHealth, enemyHealth, soldierHealth, slimeHealth, slime2Health,
-                slime3Health, playerInventory, soldierAmmo, slime3ShotLimit, &extraEnemies, &arenaWaves] {
+                slime3Health, playerInventory, soldierAmmo, slime3ShotLimit, &extraEnemies, &arenaWaves, &dungeonKillStreak,
+                &gameTimer] {
                 GameMemento memento;
                 memento.setPlayerPosition(playerObject.getPosition());
                 memento.setPlayerHp(playerHealth ? playerHealth->getHp() : 0);
@@ -1775,6 +1956,16 @@ void SceneFacade::run()
                 memento.setLevelShapeSeed(activeShapeSeed);
                 // -1, если волны ещё не запущены (обычный бой в подземелье) — см. applyArenaWaveMemento в загрузке.
                 memento.setArenaWave(arenaWaves.getCurrentWave());
+                memento.setKillStreakData(playerHealth ? playerHealth->getMaxHp() : 0, dungeonKillStreak);
+                memento.setElapsedTime(gameTimer.getElapsed().asSeconds());
+                // По тому же порядку обхода, что и resetInteractables()/loadFromMemento ниже — предмет из
+                // сундука уже осел в bagSave выше, без этого сундук при загрузке открывался бы заново и выдавал
+                // его повторно (баг-дубликат, найден при аудите сохранений).
+                std::vector<int> openedChests;
+                for (ChestComponent* chest : GameWorld::instance().getRoot().getComponentsInChildren<ChestComponent>()) {
+                    openedChests.push_back(chest->isOpened() ? 1 : 0);
+                }
+                memento.setOpenedChests(std::move(openedChests));
                 if (!memento.save(savePath())) {
                     LOG_WARN("Сохранить: не удалось записать файл сохранения");
                 }
@@ -1928,6 +2119,14 @@ void SceneFacade::run()
             [&victoryNameEntered] { return GameWorld::instance().isVictory() && victoryNameEntered; }, "ui_move", "ui_confirm",
             24.f);
         GameWorld::instance().getUIRoot().addChild(std::move(victoryMenuObject));
+        // Плавное появление экрана победы (был "слишком резко появляется") — та же триггер-функция,
+        // что у самого экрана, добавлен ПОСЛЕ него, поэтому рисуется поверх и первые полсекунды закрывает его
+        // сплошным чёрным, растворяясь в прозрачность.
+        auto victoryFadeObject = std::make_unique<GameObject>(sf::Vector2f(0.f, 0.f));
+        victoryFadeObject->addComponent<ScreenFadeComponent>(sf::Vector2f((float)windowWidth, (float)windowHeight),
+            sf::Color::Black, sf::seconds(0.6f),
+            [&victoryNameEntered] { return GameWorld::instance().isVictory() && victoryNameEntered; });
+        GameWorld::instance().getUIRoot().addChild(std::move(victoryFadeObject));
         LOG_INFO("UI: экран победы добавлен");
 
         // Титры, помощь, список лидеров и настройки  — это модальные экраны поверх любого меню.
@@ -1947,6 +2146,18 @@ void SceneFacade::run()
             playerBar->addComponent<HealthBarComponent>(*playerHealth, "Resources/GUI/Bar_C.png", sf::Vector2f(231.f, 48.f),
                 [] { return GameWorld::instance().hasStarted(); });
             uiRoot.addChild(std::move(playerBar));
+
+            // Виньетирование по краям экрана на "мало здоровья" — тот же порог и тот же период пульсации, что и у
+            // LowHealthPulseComponent на теле игрока, читает те же Player::LOW_HP_THRESHOLD/LOW_HP_PULSE_PERIOD
+            // (см. Player.h), а не собственную копию — раньше это были два независимых хардкод-литерала, и
+            // рассинхрон периода между телом и экраном уже был багом (см. аудит дублирования кода).
+            // !isPaused() — иначе компонент висит в uiRoot (тот, в отличие от m_root, тикает и на паузе) и продолжал
+            // бы пульсировать поверх меню паузы/инвентаря, что тоже смущало игрока.
+            auto lowHpFlash = std::make_unique<GameObject>(sf::Vector2f(0.f, 0.f));
+            lowHpFlash->addComponent<LowHealthScreenFlashComponent>(*playerHealth,
+                sf::Vector2f((float)windowWidth, (float)windowHeight), Player::LOW_HP_THRESHOLD, Player::LOW_HP_PULSE_PERIOD,
+                [] { return GameWorld::instance().hasStarted() && !GameWorld::instance().isPaused(); });
+            uiRoot.addChild(std::move(lowHpFlash));
         }
         if (playerInput) {
             // Полоска выносливости — под полоской HP (та занимает 16,16 размером 231x48), тем же приёмом, что и
@@ -2011,16 +2222,16 @@ void SceneFacade::run()
                     switch (playerWeapon->getCurrent()) {
                     case Weapon::Gun:
                         lines.push_back("R — перезарядка");
-                        lines.push_back("F — выстрел");
+                        lines.push_back("F / ЛКМ — выстрел");
                         break;
                     case Weapon::Spear:
-                        lines.push_back("F — атака");
+                        lines.push_back("F / ЛКМ — атака");
                         break;
                     default:
                         break; // Безоружен — бить нечем, боевой строки нет.
                     }
-                    lines.push_back("Q — смена оружия");
-                    lines.push_back("Tab — инвентарь");
+                    lines.push_back("Q / колесо — смена оружия");
+                    lines.push_back("Tab / ПКМ — инвентарь");
                     lines.push_back("E — взаимодействие");
                     std::string text;
                     for (std::size_t i = 0; i < lines.size(); ++i) {

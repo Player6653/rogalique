@@ -5,7 +5,8 @@
 
 void PlayerAttackComponent::update(sf::Time dt)
 {
-    bool attackKeyHeld = FocusedInput::isKeyPressed(sf::Keyboard::F) || FocusedInput::isKeyPressed(sf::Keyboard::Z);
+    bool attackKeyHeld = FocusedInput::isKeyPressed(sf::Keyboard::F) || FocusedInput::isKeyPressed(sf::Keyboard::Z)
+                         || FocusedInput::isButtonPressed(sf::Mouse::Left);
     bool attackKeyPressedThisFrame = m_attackEdge.poll(attackKeyHeld);
 
     if (!attackKeyPressedThisFrame) {

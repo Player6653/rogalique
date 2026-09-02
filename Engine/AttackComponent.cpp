@@ -11,7 +11,8 @@
 #include <cmath>
 
 AttackComponent::AttackComponent(std::string label, int damage, float range, sf::Time cooldown, bool autoAttack,
-    sf::Time hitDelay, std::function<bool(GameObject*)> targetFilter, bool requireTarget, bool omnidirectional)
+    sf::Time hitDelay, std::function<bool(GameObject*)> targetFilter, bool requireTarget, bool omnidirectional,
+    float lifestealFraction, std::function<void(sf::Vector2f)> onAttackStarted, std::function<void(sf::Vector2f)> onHit)
     : m_label(std::move(label)),
       m_damage(damage),
       m_range(range),
@@ -20,12 +21,16 @@ AttackComponent::AttackComponent(std::string label, int damage, float range, sf:
       m_requireTarget(requireTarget),
       m_omnidirectional(omnidirectional),
       m_hitDelay(hitDelay),
-      m_targetFilter(std::move(targetFilter))
+      m_targetFilter(std::move(targetFilter)),
+      m_lifestealFraction(lifestealFraction),
+      m_onAttackStarted(std::move(onAttackStarted)),
+      m_onHit(std::move(onHit))
 {
     assert(damage >= 0 && "AttackComponent: damage must not be negative");
     assert(range > 0.f && "AttackComponent: range must be positive");
     assert(cooldown >= sf::Time::Zero && "AttackComponent: cooldown must not be negative");
     assert(hitDelay >= sf::Time::Zero && "AttackComponent: hitDelay must not be negative");
+    assert(lifestealFraction >= 0.f && "AttackComponent: lifestealFraction must not be negative");
 }
 
 void AttackComponent::update(sf::Time dt)
@@ -89,9 +94,32 @@ void AttackComponent::resolvePendingHit()
         }
     }
 
+    applyHit(target, owner);
+}
+
+void AttackComponent::applyHit(HealthComponent* target, GameObject* owner)
+{
     int appliedDamage = target->takeDamage(m_damage);
     LOG_INFO(m_label + " attacked for " + std::to_string(appliedDamage) + " damage (of " + std::to_string(m_damage)
              + " before armor; target hp now " + std::to_string(target->getHp()) + ")");
+
+    // Лайфстил — только от реально прошедшего урона (не от нуля, если броня/неуязвимость всё поглотили), и только
+    // если владелец сам жив (мёртвый уже не лечится, да и getComponent на разрушенном GameObject не позвать).
+    if (appliedDamage > 0 && m_lifestealFraction > 0.f && owner) {
+        HealthComponent* ownHealth = owner->getComponent<HealthComponent>();
+        if (ownHealth && !ownHealth->isDead()) {
+            int healAmount = static_cast<int>(static_cast<float>(appliedDamage) * m_lifestealFraction);
+            if (healAmount > 0) {
+                // setHp() сам прижимает к [0, maxHp] — не нужно отдельно проверять переполнение.
+                ownHealth->setHp(ownHealth->getHp() + healAmount);
+            }
+        }
+    }
+
+    if (m_onHit) {
+        GameObject* targetOwner = target->getOwner();
+        m_onHit(targetOwner ? targetOwner->getPosition() : sf::Vector2f(0.f, 0.f));
+    }
 }
 
 bool AttackComponent::tryAttack()
@@ -128,12 +156,13 @@ bool AttackComponent::tryAttack()
     // и взвестись заново, так что внешний опрос раз в кадр эту границу не поймает.
     m_cooldownRemaining = m_cooldown;
     m_justStarted = true;
+    if (m_onAttackStarted) {
+        m_onAttackStarted(owner->getPosition());
+    }
 
     if (health) {
         if (m_hitDelay <= sf::Time::Zero) {
-            int appliedDamage = health->takeDamage(m_damage);
-            LOG_INFO(m_label + " attacked for " + std::to_string(appliedDamage) + " damage (of " + std::to_string(m_damage)
-                     + " before armor; target hp now " + std::to_string(health->getHp()) + ")");
+            applyHit(health, owner);
         } else {
             m_pendingTarget = health;
             m_hitDelayRemaining = m_hitDelay;

@@ -11,6 +11,7 @@ public:
     TrapComponent(sf::Time cycleDuration, sf::Time dangerousPhaseStart);
 
     void update(sf::Time dt) override;
+    void reset() override;
 
 private:
     sf::Time m_cycleDuration;

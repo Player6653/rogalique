@@ -6,6 +6,7 @@
 #include "GameWorld.h"
 #include "InputComponent.h"
 #include "Log.h"
+#include "MouseWheelBuffer.h"
 #include "RangedAttackComponent.h"
 #include <SFML/Window/Keyboard.hpp>
 #include <algorithm>
@@ -51,7 +52,9 @@ void WeaponComponent::update(sf::Time dt)
         m_switchEdge.sync(FocusedInput::isKeyPressed(sf::Keyboard::Q));
         m_reloadEdge.sync(FocusedInput::isKeyPressed(sf::Keyboard::R));
     } else {
-        if (m_switchEdge.poll(FocusedInput::isKeyPressed(sf::Keyboard::Q))) {
+        // Колесо мыши — та же смена оружия, что и Q (см. MouseWheelBuffer.h): оружий всего два, направление
+        // прокрутки не важно, любое ненулевое значение за кадр считается переключением.
+        if (m_switchEdge.poll(FocusedInput::isKeyPressed(sf::Keyboard::Q)) || MouseWheelBuffer::deltaThisFrame() != 0.f) {
             switchWeapon();
         }
         if (m_reloadEdge.poll(FocusedInput::isKeyPressed(sf::Keyboard::R))) {

@@ -6,6 +6,13 @@ namespace
     // "-" вместо itemId у пустого слота/категории — id предметов никогда не пустые и не состоят из одного дефиса,
     // так что сентинел однозначно отличим от настоящего id при чтении.
     const std::string EMPTY_ITEM_TOKEN = "-";
+
+    // Верхняя граница на любой count/size, прочитанный из файла сейва ПЕРЕД reserve() — savegame.txt обычный
+    // текст, редактируемый вручную; мусорное число на месте счётчика (или намеренно подставленное огромное) без
+    // этой проверки шло прямиком в vector::reserve() и валило процесс через std::length_error/bad_alloc вместо
+    // мягкого "сохранение повреждено" (найдено при аудите сохранений). Реальных коллекций в сейве — единицы
+    // десятков элементов, 100000 — с огромным запасом, но всё ещё отсекает адресное пространство.
+    constexpr std::size_t MAX_SAVED_COLLECTION_SIZE = 100000;
 } // namespace
 
 bool GameMemento::save(const std::string& filePath) const
@@ -55,6 +62,19 @@ bool GameMemento::save(const std::string& filePath) const
                                     file << m_inventory.levelShapeSeed << "\n";
                                     if (m_inventory.hasArenaWave) {
                                         file << m_inventory.arenaWave << "\n";
+                                        if (m_inventory.hasKillStreak) {
+                                            file << m_inventory.playerMaxHp << " " << m_inventory.dungeonKillStreak << "\n";
+                                            if (m_inventory.hasElapsedTime) {
+                                                file << m_inventory.elapsedSeconds << "\n";
+                                                if (m_inventory.hasOpenedChests) {
+                                                    file << m_inventory.openedChests.size() << "\n";
+                                                    for (int opened : m_inventory.openedChests) {
+                                                        file << opened << " ";
+                                                    }
+                                                    file << "\n";
+                                                }
+                                            }
+                                        }
                                     }
                                 }
                             }
@@ -64,7 +84,9 @@ bool GameMemento::save(const std::string& filePath) const
             }
         }
     }
-    return true;
+    // Диск мог переполниться посреди записи — поток тогда флагует ошибку, но не бросает исключение; без этой
+    // проверки save() рапортовал бы "успех" поверх обрубленного файла (найдено при аудите сохранений).
+    return file.good();
 }
 
 bool GameMemento::load(const std::string& filePath, GameMemento& outMemento)
@@ -94,7 +116,7 @@ bool GameMemento::load(const std::string& filePath, GameMemento& outMemento)
                     memento.m_slime3.hasData = true;
 
                     std::size_t bagCount = 0;
-                    if (file >> bagCount) {
+                    if (file >> bagCount && bagCount <= MAX_SAVED_COLLECTION_SIZE) {
                         std::vector<BagSlotSave> bag;
                         bag.reserve(bagCount);
                         bool bagOk = true;
@@ -111,7 +133,7 @@ bool GameMemento::load(const std::string& filePath, GameMemento& outMemento)
                         }
 
                         std::size_t equipCount = 0;
-                        if (bagOk && (file >> equipCount)) {
+                        if (bagOk && (file >> equipCount) && equipCount <= MAX_SAVED_COLLECTION_SIZE) {
                             std::vector<EquipSlotSave> equipment;
                             equipment.reserve(equipCount);
                             bool equipOk = true;
@@ -131,7 +153,7 @@ bool GameMemento::load(const std::string& filePath, GameMemento& outMemento)
                             int slime3ShotsFired = 0;
                             if (equipOk && (file >> soldierArrows >> slime3ShotsFired)) {
                                 std::size_t pickupCount = 0;
-                                if (file >> pickupCount) {
+                                if (file >> pickupCount && pickupCount <= MAX_SAVED_COLLECTION_SIZE) {
                                     std::vector<int> collectedPickups;
                                     collectedPickups.reserve(pickupCount);
                                     bool pickupsOk = true;
@@ -153,7 +175,7 @@ bool GameMemento::load(const std::string& filePath, GameMemento& outMemento)
                                         if (file >> levelSeed) {
                                             memento.setLevelSeed(levelSeed);
                                             std::size_t extraCount = 0;
-                                            if (file >> extraCount) {
+                                            if (file >> extraCount && extraCount <= MAX_SAVED_COLLECTION_SIZE) {
                                                 std::vector<ExtraEnemySave> extras;
                                                 extras.reserve(extraCount);
                                                 bool extrasOk = true;
@@ -173,12 +195,48 @@ bool GameMemento::load(const std::string& filePath, GameMemento& outMemento)
                                                     unsigned levelShapeSeed = 0;
                                                     if (file >> levelShapeSeed) {
                                                         memento.setLevelShapeSeed(levelShapeSeed);
-                                                        // Последнее звено цепочки — см. симметричный комментарий у
-                                                        // extraEnemies выше: сейв мог быть записан этой же сессией
+                                                        // Предпоследнее звено цепочки — см. симметричный комментарий
+                                                        // у extraEnemies выше: сейв мог быть записан этой же сессией
                                                         // до появления сохранения состояния арены волн.
                                                         int arenaWave = -1;
                                                         if (file >> arenaWave) {
                                                             memento.setArenaWave(arenaWave);
+                                                            // Самое новое звено — та же логика: сейв мог быть
+                                                            // записан этой же сессией до появления награды за
+                                                            // убийства ботов в подземелье.
+                                                            int playerMaxHp = 0;
+                                                            int dungeonKillStreak = 0;
+                                                            if (file >> playerMaxHp >> dungeonKillStreak) {
+                                                                memento.setKillStreakData(playerMaxHp, dungeonKillStreak);
+                                                                // Самое новое звено — та же логика: сейв мог быть
+                                                                // записан этой же сессией до появления сохранения
+                                                                // секундомера забега.
+                                                                float elapsedSeconds = 0.f;
+                                                                if (file >> elapsedSeconds) {
+                                                                    memento.setElapsedTime(elapsedSeconds);
+                                                                    // Самое новое звено — та же логика: сейв мог
+                                                                    // быть записан этой же сессией до появления
+                                                                    // сохранения состояния сундуков.
+                                                                    std::size_t openedChestCount = 0;
+                                                                    if (file >> openedChestCount
+                                                                        && openedChestCount <= MAX_SAVED_COLLECTION_SIZE) {
+                                                                        std::vector<int> openedChests;
+                                                                        openedChests.reserve(openedChestCount);
+                                                                        bool openedOk = true;
+                                                                        for (std::size_t i = 0; i < openedChestCount && openedOk; ++i) {
+                                                                            int opened = 0;
+                                                                            if (!(file >> opened)) {
+                                                                                openedOk = false;
+                                                                                break;
+                                                                            }
+                                                                            openedChests.push_back(opened);
+                                                                        }
+                                                                        if (openedOk) {
+                                                                            memento.setOpenedChests(std::move(openedChests));
+                                                                        }
+                                                                    }
+                                                                }
+                                                            }
                                                         }
                                                     }
                                                 }

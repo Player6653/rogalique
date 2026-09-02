@@ -28,6 +28,9 @@ namespace
     constexpr float STAMINA_SPRINT_DRAIN_PER_SEC = 25.f;
     constexpr float STAMINA_DASH_COST = 20.f;
     constexpr float STAMINA_REGEN_PER_SEC = 20.f;
+    // Порог возврата из "выдохся" (см. m_exhausted в .h) — на нём бак должен реально накопиться, а не просто
+    // оторваться от нуля: 20% бака ~1с регена, короткая, но заметная пауза перед тем, как спринт снова доступен.
+    constexpr float EXHAUSTION_RECOVERY_THRESHOLD = InputComponent::STAMINA_MAX * 0.2f;
 } // namespace
 
 void InputComponent::update(sf::Time dt)
@@ -67,10 +70,17 @@ void InputComponent::update(sf::Time dt)
 
     bool sprintKeyHeld = m_sprintEnabled && !m_sprintSuppressed
                          && (FocusedInput::isKeyPressed(sf::Keyboard::LShift) || FocusedInput::isKeyPressed(sf::Keyboard::RShift));
-    // На нуле бак спринт глушит (игрок "выдохся") — держать Shift дальше просто ничего не даёт, пока бак не
-    // накопится хоть немного, а не строго до максимума: иначе после каждой полной растраты пришлось бы ждать
-    // полного восстановления, прежде чем снова побежать хоть на секунду.
-    bool sprinting = sprintKeyHeld && m_stamina > 0.f;
+    // На нуле бак не просто временно недостаточен — ставим m_exhausted и держим спринт выключенным, пока бак не
+    // отрастёт до EXHAUSTION_RECOVERY_THRESHOLD (не строго до максимума: иначе после каждой полной растраты
+    // пришлось бы ждать полного восстановления, прежде чем снова побежать хоть на секунду). Простой "m_stamina>0"
+    // без этого флага мигал бы true/false каждый кадр на нуле — регенерация за один кадр тут же поднимает бак
+    // обратно выше нуля, следующий кадр снова проходит проверку, и так по кругу (баг — анимация дёргалась).
+    if (m_stamina <= 0.f) {
+        m_exhausted = true;
+    } else if (m_exhausted && m_stamina >= EXHAUSTION_RECOVERY_THRESHOLD) {
+        m_exhausted = false;
+    }
+    bool sprinting = sprintKeyHeld && !m_exhausted;
     if (sprinting) {
         m_direction *= SPRINT_MULTIPLIER;
         m_stamina = std::max(0.f, m_stamina - STAMINA_SPRINT_DRAIN_PER_SEC * dt.asSeconds());
@@ -123,4 +133,5 @@ void InputComponent::reset()
     m_jumpTimeRemaining = sf::Time::Zero;
     m_movementLocked = false;
     m_stamina = STAMINA_MAX;
+    m_exhausted = false;
 }
