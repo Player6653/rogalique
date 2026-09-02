@@ -899,12 +899,10 @@ void SceneFacade::run()
         InventoryComponent* playerInventory = player->getComponent<InventoryComponent>();
         WeaponComponent* playerWeapon = player->getComponent<WeaponComponent>();
         InputComponent* playerInput = player->getComponent<InputComponent>();
-        if (playerHealth && playerInventory) {
-            // Расходуемая прочность брони (Щит/Шлем/Нагрудник/Штаны) блокирует удар целиком вместо обычной брони —
-            // см. класс-комментарий InventoryComponent.h. HealthComponent сам не знает про InventoryComponent
-            // (Engine не зависит от Rogalique), поэтому подписываем сюда, а не изнутри самого InventoryComponent.
-            playerHealth->setDamageInterceptor([playerInventory](int damage) { return playerInventory->absorbHit(damage); });
+        if (playerInventory) {
             // Без экипировки на старте: 0 брони, спринт/рывок/пистолет закрыты, пока не найдены сапоги/кольцо/арбалет.
+            // Перехватчик урона (расходуемая прочность брони, см. InventoryComponent.h) подписывается ниже, вместе
+            // с тряской камеры на бронированный удар — там же, где уже есть указатель на camera.
             playerInventory->recomputeEquipmentEffects();
         }
         // Ссылку и точку спавна держим отдельно понадобятся пункту паузы "В главное меню", чтобы вернуть игрока и врага в исходное состояние (HP, позиция, таймеры), а не просто заморозить их как есть.
@@ -921,6 +919,23 @@ void SceneFacade::run()
         if (camera && playerHealth) {
             // Graphics: тряска камеры + частицы на изменение HP игрока (см. docs/DESIGN_DOC.md).
             playerObject.addComponent<HealthChangeFeedbackComponent>(*playerHealth, *camera);
+        }
+        if (camera && playerHealth && playerInventory) {
+            // Расходуемая прочность брони (Щит/Шлем/Нагрудник/Штаны, см. InventoryComponent::absorbHit) блокирует
+            // удар целиком вместо обычной брони — см. класс-комментарий InventoryComponent.h. HealthComponent сам
+            // не знает про InventoryComponent (Engine не зависит от Rogalique), поэтому подписываем сюда.
+            // Броня может погасить удар целиком — HP тогда не меняется вовсе, и HealthChangeFeedbackComponent выше
+            // (он реагирует только на изменение HP) тряску не даёт, хотя удар физически произошёл. Трясём камеру
+            // прямо здесь всякий раз, когда броня забрала хоть часть урона, независимо от того, дошло ли что-то до HP.
+            constexpr float ARMOR_HIT_SHAKE_MAGNITUDE_PIXELS = 6.f;
+            const sf::Time ARMOR_HIT_SHAKE_DURATION = sf::seconds(0.15f);
+            playerHealth->setDamageInterceptor([playerInventory, camera, ARMOR_HIT_SHAKE_DURATION](int damage) {
+                int remaining = playerInventory->absorbHit(damage);
+                if (remaining < damage) {
+                    camera->shake(ARMOR_HIT_SHAKE_MAGNITUDE_PIXELS, ARMOR_HIT_SHAKE_DURATION);
+                }
+                return remaining;
+            });
         }
         // Отрисовщик частиц — прямой ребёнок root (не actorsContainer, чтобы не попасть под её Y-сортировку —
         // у частиц нет единой позиции, определяющей порядок отрисовки), добавлен позже actorsContainer, поэтому
