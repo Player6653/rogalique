@@ -11,12 +11,15 @@ public:
 
     void setPlaceholderColor(sf::Color color);
 
-    // Отражает спрайт по горизонтали нужно паку с одним нарисованным направлением.
+    // Отражает спрайт по горизонтали — нужно паку с одним нарисованным направлением, а также тайлам с флагом
+    // Flip Horizontally из Tiled (см. TiledLevel.h/ResolvedTile::flippedHorizontally и
+    // SceneFacade.cpp::spawnTiledTileAt).
     void setFlippedX(bool flipped);
-    // Отражает спрайт по вертикали — нужен тайлам с флагом Vertical Flip из Tiled (см. TiledLevel.h/
+    // Отражает спрайт по вертикали — нужен тайлам с флагом Flip Vertically из Tiled (см. TiledLevel.h/
     // ResolvedTile::flippedVertically и SceneFacade.cpp::spawnTiledTileAt).
     void setFlippedY(bool flipped);
-    // Поворот в градусах нужен снарядам (Projectile) развернуть спрайт по направлению полёта.
+    // Поворот в градусах — снарядам (Projectile) развернуть спрайт по направлению полёта, а также тайлам с
+    // диагональным флагом (Rotate) из Tiled, см. SceneFacade.cpp::spawnTiledTileAt.
     void setRotation(float degrees);
     void setColor(sf::Color color);
     void clearColor();
@@ -37,10 +40,10 @@ public:
     // Как loadTexture(), но берёт не всю картинку, а один прямоугольный вырез из неё (в пикселях исходного файла)
     // — без анимации. Нужен для тайлов, вырезаемых из общего листа тайлсета "на лету" по данным Tiled-карты
     // (см. Rogalique/TiledLevel.h), вместо того чтобы заранее вручную сохранять каждый тайл отдельным PNG-файлом.
-    // repeat=true — rect может быть БОЛЬШЕ самой текстуры (например, весь размер большого пола сразу одним
-    // спрайтом), тогда картинка не растягивается/обрезается, а замощается повтором (см. sf::Texture::setRepeated)
-    // — нужно, когда одной большой заливкой дешевле для сцены, чем тайл-объект на каждую клетку (см. арену волн,
-    // SceneFacade.cpp: 30x30 клеток одним объектом пола вместо ~900).
+    // repeat=true — rect может быть БОЛЬШЕ самой текстуры, тогда картинка не растягивается/обрезается, а
+    // замощается повтором (см. sf::Texture::setRepeated) — на случай, когда одной большой заливкой дешевле для
+    // сцены, чем тайл-объект на каждую клетку (сейчас такого использования в игре нет — и подземелье, и арена
+    // рисуются по клетке через spawnTiledTileAt, см. SceneFacade.cpp).
     bool loadTextureRegion(const std::string& path, sf::IntRect rect, bool repeat = false);
 
     // Полоса из frameCount одинаковых кадров подряд по горизонтали. rowCount>1 — лист поделён на несколько таких

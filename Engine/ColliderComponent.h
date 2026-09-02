@@ -3,7 +3,7 @@
 #include "IComponent.h"
 #include <SFML/Graphics.hpp>
 
-//Стратегия столкновений - прямоугольная область вокруг владельца.
+// Стратегия столкновений — прямоугольная область вокруг владельца.
 
 class ENGINE_API ColliderComponent : public IComponent {
 public:

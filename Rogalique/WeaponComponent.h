@@ -60,7 +60,7 @@ public:
 
     // Пистолет (сейчас единственный — это и есть арбалет, см. ItemDefinition.cpp "crossbow") недоступен, пока в
     // экипировке нет соответствующего Weapon-предмета: ни выбрать по Q, ни оставаться на нём, если его сняли.
-    // Вызывает InventoryComponent::recomputeEquipmentEffects() при каждой экипировке/снятии/сбросе.
+    // Зовётся из InventoryComponent::recomputeEquipmentEffects() при каждой экипировке/снятии/сбросе.
     void setGunAvailable(bool available);
     bool isGunAvailable() const
     {

@@ -30,7 +30,7 @@ private:
     bool m_wasJumping = false;
     sf::Time m_jumpVisualTimeRemaining;
 
-    // Копьё — визуальный импульс на удар, копия того же приёма, что у EnemyAnimationComponent/SoldierAnimationComponent.
+    // Копьё — визуальный импульс на удар, тот же приём, что и в общем ActorAnimationComponent (Enemy/Soldier/Slime и т.д.).
     sf::Time m_meleeVisualTimeRemaining;
 
     // Пистолет — визуальный импульс на выстрел (recoil-поза), отдельно от факта перезарядки.

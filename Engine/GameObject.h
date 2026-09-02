@@ -12,7 +12,8 @@ public:
     explicit GameObject(sf::Vector2f position = sf::Vector2f(0.f, 0.f));
     virtual ~GameObject();
 
-    // Владеет своими детьми и компонентами через unique_ptr копирование не имеет смысла (и без явного запрета MSVC не может инстанцировать неявный operator= для dllexport-класса).
+    // Владеет своими детьми и компонентами через unique_ptr — копирование не имеет смысла (и без явного запрета
+    // MSVC не может инстанцировать неявный operator= для dllexport-класса).
     GameObject(const GameObject&) = delete;
     GameObject& operator=(const GameObject&) = delete;
 
@@ -84,7 +85,7 @@ public:
     // Рисует свои компоненты и рекурсивно всех детей — в порядке добавления, если не включён Y-sort (см. ниже).
     virtual void draw(sf::RenderWindow& window) const;
 
-    // Включает Y-sort для СВОих прямых детей.
+    // Включает Y-sort для своих прямых детей.
     void setSortChildrenByY(bool enabled)
     {
         m_sortChildrenByY = enabled;
@@ -97,7 +98,7 @@ public:
     void setPosition(sf::Vector2f position);
     void move(sf::Vector2f offset);
 
-    // Помечает объект на удаление из дерева нужно снарядам (Projectile), которые должны исчезать после попадания
+    // Помечает объект на удаление из дерева — нужно снарядам (Projectile), которые должны исчезать после попадания
     // или истечения дальности. Само удаление — в конце update() родителя (см. ниже), а не сразу: component->update()
     // может звать destroy() у СВОЕГО ЖЕ владельца, пока родитель ещё итерирует m_children этим же кадром, а стирать
     // элемент вектора прямо во время такой итерации — undefined behavior.

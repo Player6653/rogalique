@@ -5,7 +5,7 @@
 #include <SFML/Window/Keyboard.hpp>
 #include <SFML/Window/Mouse.hpp>
 
-// По нажатию F, Z или ЛКМ пытается атаковать через AttackComponent.
+// По нажатию F, Z или ЛКМ зовёт WeaponComponent::tryAttack() — тот сам решает, копьё это или пистолет.
 class PlayerAttackComponent : public IComponent {
 public:
     void update(sf::Time dt) override;

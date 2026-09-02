@@ -22,12 +22,12 @@ public:
         return m_facing;
     }
 
-    // true всё то время, пока длится рывок нужно PlayerAnimationComponent, чтобы показать ролик Dash.
+    // true всё то время, пока длится рывок — нужно PlayerAnimationComponent, чтобы показать ролик Dash.
     bool isDashing() const
     {
         return m_dashTimeRemaining > sf::Time::Zero;
     }
-    // true всё то время, пока длится прыжок нужно PlayerAnimationComponent, чтобы показать ролик Jump.
+    // true всё то время, пока длится прыжок — нужно PlayerAnimationComponent, чтобы показать ролик Jump.
     bool isJumping() const
     {
         return m_jumpTimeRemaining > sf::Time::Zero;

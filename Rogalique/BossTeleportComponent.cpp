@@ -47,9 +47,9 @@ void BossTeleportComponent::update(sf::Time dt)
         return;
     }
 
-    // Точка должна быть проходима — на арене есть колонны-укрытия (CoverPillar, см. SceneFacade), телепорт в
-    // случайную точку без этой проверки мог засадить босса прямо в коллайдер колонны (баг, найден при аудите
-    // ИИ). Тот же приём (несколько попыток + isWalkableWorld), что и у EnemyBehaviorComponent::pickNewPatrolPoint;
+    // Точка должна быть проходима — на арене есть колонны-укрытия (стены на слое Walls в Resources/Level/Arena.tmj),
+    // телепорт в случайную точку без этой проверки мог засадить босса прямо в коллайдер колонны (баг, найден при
+    // аудите ИИ). Тот же приём (несколько попыток + isWalkableWorld), что и у EnemyBehaviorComponent::pickNewPatrolPoint;
     // если 8 попыток не нашли проходимую точку — просто не телепортируемся в этот раз, следующая попытка через
     // teleportInterval.
     static std::mt19937 rng{std::random_device{}()};

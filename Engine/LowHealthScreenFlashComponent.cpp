@@ -1,4 +1,4 @@
-#include "pch.h"
+﻿#include "pch.h"
 #include "LowHealthScreenFlashComponent.h"
 #include "HealthComponent.h"
 #include <cmath>
@@ -82,7 +82,7 @@ void LowHealthScreenFlashComponent::update(sf::Time dt)
     }
     float phase = std::fmod(m_pulseTimer.asSeconds(), period) / period; // 0..1 внутри текущего цикла.
     // 1-cos даёт гладкий подъём от 0 до максимума и плавный спад обратно, вместо резкого
-    // прыжка between 0 и FLASH_MAX_ALPHA, как было раньше (дискретное мигание каждые pulsePeriod).
+    // прыжка между 0 и FLASH_MAX_ALPHA, как было раньше (дискретное мигание каждые pulsePeriod).
     float wave = 0.5f - 0.5f * std::cos(phase * 2.f * PI);
     setEdgeAlpha(static_cast<sf::Uint8>(wave * FLASH_MAX_ALPHA));
 }

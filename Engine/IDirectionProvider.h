@@ -1,7 +1,7 @@
 ﻿#pragma once
 #include <SFML/System/Vector2.hpp>
 
-// Общий интерфейс для всего, что может подсказать MovementComponent
+// Общий интерфейс для всего, что может подсказать MovementComponent направление движения.
 class IDirectionProvider {
 public:
     virtual ~IDirectionProvider() = default;

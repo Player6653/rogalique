@@ -12,7 +12,7 @@ class ColliderComponent;
 class HealthComponent;
 class CameraComponent;
 
-// Синглтон единственное дерево игровых объектов сцены — корень паттерна Компоновщик.
+// Синглтон — единственное дерево игровых объектов сцены, корень паттерна Компоновщик.
 class ENGINE_API GameWorld {
 public:
     static GameWorld& instance();
@@ -95,7 +95,7 @@ public:
 
         // Отложенный спавн выполняется здесь, а не сразу из вызывающего кода (например, RangedAttackComponent,
         // SlimeSplitComponent), потому что addChild() пушит в тот же вектор m_children, который в этот момент мог
-        // итерировать update() у m_root/её потомков ещё выше по стеку вызовов push_back туда во время такой
+        // итерировать update() у m_root/её потомков ещё выше по стеку вызовов — push_back туда во время такой
         // итерации мог бы инвалидировать текущий range-for и уронить кадр.
         for (auto& pending : m_pendingSpawns) {
             pending.first->addChild(std::move(pending.second));

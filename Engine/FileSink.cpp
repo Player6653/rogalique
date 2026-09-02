@@ -25,7 +25,8 @@ FileSink::FileSink(std::string filePath)
 
 void FileSink::write(LogLevel level, const std::string& loggerName, const std::string& message)
 {
-    // ofstream открывается и закрывается (в деструкторе при выходе из области видимости) на каждую запись сообщение гарантированно на диске сразу после этого вызова.
+    // ofstream открывается и закрывается (в деструкторе при выходе из области видимости) на каждую запись —
+    // сообщение гарантированно на диске сразу после этого вызова.
     std::ofstream file(m_filePath, std::ios::app);
     if (!file.is_open()) {
         return;

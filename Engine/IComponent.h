@@ -3,7 +3,7 @@
 
 class GameObject;
 
-// Базовый интерфейс компонента паттерн Стратегия.
+// Базовый интерфейс компонента — паттерн Стратегия.
 class IComponent {
 public:
     virtual ~IComponent() = default;

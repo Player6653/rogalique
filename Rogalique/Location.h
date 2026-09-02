@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include <string>
 
 // Gameplay: явное понятие "текущая локация" (см. docs/DESIGN_DOC.md, направление Gameplay Developer, лёгкий

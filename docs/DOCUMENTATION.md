@@ -130,7 +130,7 @@ RenderSystem::endFrame()
 | Движение и физика | `MovementComponent`, `ColliderComponent`, `ColliderGrid` |
 | Бой | `AttackComponent` (в т.ч. необязательный лайфстил и колбэки onAttackStarted/onHit для внешнего VFX), `RangedAttackComponent`, `TargetFinder` (общий поиск цели), `Projectile`/`ProjectileComponent` (в т.ч. необязательный колбэк onImpact), `VisualEffect` (одноразовый декоративный спрайт-ролик, сам себя уничтожает по окончании), `HealthComponent` (в т.ч. `increaseMaxHp()`, «последний удар не убивает»), `HitFlashComponent`, `HealthBarComponent` |
 | Направление/ввод | `InputComponent`, `IDirectionProvider`, `FocusedInput`, `TextInputBuffer`, `MouseWheelBuffer` (буфер дельты колеса мыши, по образцу `TextInputBuffer`) |
-| Камера и рендер | `CameraComponent`, `SpriteComponent`, `TiledBackgroundComponent`, `RenderSystem`, `ScreenFadeComponent` (плавное затухание полноэкранного оверлея по триггеру), `LowHealthScreenFlashComponent` (плавная пульсация виньетирования на низком HP) |
+| Камера и рендер | `CameraComponent` (в т.ч. `shake()` — затухающая тряска), `SpriteComponent` (в т.ч. `setFlippedX/Y` + поворот — под флаги Flip Horizontally/Vertically/Rotate из Tiled), `TiledBackgroundComponent`, `RenderSystem`, `ScreenFadeComponent` (плавное затухание полноэкранного оверлея по триггеру), `LowHealthScreenFlashComponent` (плавная пульсация виньетирования на низком HP) |
 | UI-оверлеи | `OverlayPanelBase`/`NineSliceSprite` (общая база 9-slice панелей), `MenuOverlayComponent`, `SettingsOverlayComponent`, `InventoryOverlayComponent`, `CreditsOverlayComponent`, `NameEntryOverlayComponent`, `HudTextComponent`, `ArmorBadgeComponent`, `PickupGlowComponent` |
 | Разное | `PauseToggleComponent`, `TransientComponent` (маркер «удалить при полном ресете»), `PitComponent` (маркер «пропускать прыгающего сквозь коллайдер»), `ChaseComponent`/`ChaseTargetComponent`, `AudioSystem` |
 | Инфраструктура | `Logger`/`LoggerRegistry`/`ConsoleSink`/`FileSink`, `GameException`, `NavGrid`, `Matrix3` |
@@ -143,7 +143,7 @@ RenderSystem::endFrame()
 | Противники | `Enemy` (орк), `Soldier`, `Slime` (+`SlimeSplitComponent`, `SlimeShotLimitComponent`), `Boss` (Vampire Lord, финальная волна арены) + `BossTeleportComponent` (фаза телепорта на низком HP), `BossIntroComponent` (одноразовая стойка при появлении), `BossSpinBarrageComponent` (редкий залп из двух колец снарядов сразу во все стороны), `VampireSpawnMinion` (призываемое подкрепление), `EnemyBehaviorComponent` (общий ИИ), `ActorAnimationComponent`/`ActorSpawnHelpers` (общий каркас), `KillStreakComponent` (награда за серию убийств, +1 maxHP игроку) |
 | Инвентарь и предметы | `InventoryComponent`, `ItemDefinition`, `ItemPickup`/`ItemPickupComponent`, `SoldierAmmoComponent` |
 | Интерактивные объекты | `Chest`/`ChestComponent`, `Door`/`DoorComponent`, `InteractionHelpers` (общая логика «в радиусе + нажата E»), `ArrowCrate`/`ArrowCrateComponent`, `Trap`/`TrapComponent`, `Pit` (использует `PitComponent` из Engine/ как маркер) |
-| Уровень | `TiledLevel`, `ChunkAssembler`, `MiniJson`, `ArenaWaveComponent` |
+| Уровень | `TiledLevel` (общий загрузчик .tmj — им пользуются и подземелье через `ChunkAssembler`, и арена напрямую, без сборки из чанков), `ChunkAssembler`, `MiniJson`, `ArenaWaveComponent` |
 | Прогресс/сохранение | `GameMemento`, `SavePaths`, `GameTimerComponent`, `Leaderboard`, `DisplaySettings` |
 | Сборка сцены | `SceneFacade` |
 
@@ -242,6 +242,7 @@ void buildColliderGrid(...); std::vector<ColliderComponent*> queryKinematicColli
 | Новый интерактивный объект (сундук/дверь-подобный) | Использовать `isPlayerInRangeAndInteractPressed()` из `InteractionHelpers.h` вместо копирования логики «в радиусе + нажата E» |
 | Новый предмет | Добавить запись в таблицу `ITEMS` в `ItemDefinition.cpp` (id/название/категория/иконка/бонусы) |
 | Новую комнату уровня | Просто положить `.tmj`-файл в `Resources/Level/Chunks/` — `ChunkAssembler` подхватит его автоматически, без правки кода (см. [раздел 5](#5-алгоритмы-и-важные-технические-решения)) |
+| Декор/планировку арены | Открыть `Resources/Level/Arena.tmj` в Tiled и редактировать как обычную комнату (слои Floor/Walls/Decor, объекты) — в отличие от комнат подземелья, это единственный файл, а не пул на выбор, и точки спавна волны — свой тип объекта `ArenaSpawnPoint` (см. [раздел 5](#5-алгоритмы-и-важные-технические-решения)) |
 | Новый экран/оверлей | Унаследоваться от `IComponent`, взять `OverlayPanelBase` за основу компоновки панели — так сделаны все существующие экраны (`MenuOverlayComponent`, `SettingsOverlayComponent` и т.д.) |
 
 ---
@@ -312,6 +313,21 @@ TiledLevel level = assembler.assembleChunkedLevel(chainLength);
 `ArenaWaveComponent` раньше спавнил весь состав волны в один кадр — визуально это читалось как резкий скачок из ниоткуда. Теперь спавн каждой волны разбирается очередью: `spawnWave()` только вычисляет позиции и складывает их в `m_pendingSpawns`, а `update()` вынимает оттуда по одному бойцу раз в `spawnStagger` (порядок и точки спавна вычисляются заранее, чтобы результат не зависел от того, когда именно очередь будет разобрана). `currentWaveCleared()` при этом обязательно проверяет, что очередь пуста — иначе волна могла бы засчитаться выбитой ещё до того, как весь её состав вообще появился на арене. Каждый заспавненный боец дополнительно получает `SpawnFadeComponent` (Engine) — тело и тень плавно проявляются из прозрачности, а не выскакивают на полной непрозрачности сразу.
 
 Тем же компонентом добавлена задержка перед вызовом `onAllWavesCleared` — `victoryDelay`: как только выбита последняя волна, вместо немедленного вызова колбэка запускается таймер, и всё это время мир остаётся не на паузе, чтобы успела доиграть анимация смерти финального врага (босса); только по истечении задержки вызывается сам колбэк, ставящий игру на паузу и открывающий экран ввода имени.
+
+### Арена волн — отдельная Tiled-карта, не код
+
+Арена изначально была написана как два вложенных цикла (пол одним большим спрайтом, стены по клетке) прямо в `SceneFacade.cpp` — редактировать её можно было только правкой C++ и пересборкой. Теперь она такой же `.tmj`-файл, как и комнаты подземелья (`Resources/Level/Arena.tmj`), грузится тем же `loadTiledLevel()` и рисуется той же функцией отрисовки тайлов, что и подземелье, только со своим смещением (`arenaOrigin` вместо `levelOrigin`) — обе карты используют один и тот же код рисования, потому что позиция мировых координат передаётся параметром, а не берётся из захваченной переменной.
+
+В отличие от подземелья, у арены нет случайного выбора и сборки из нескольких кусков — это один фиксированный файл, поэтому `ChunkAssembler` тут не участвует, только `loadTiledLevel()` напрямую. Своя точка отличия — новый тип объекта `ArenaSpawnPoint` (кольцо появления бойцов волны): раньше эти точки вычислялись формулой с отталкиванием от предметов/укрытий, чтобы боец волны не мог заспавниться поверх ящика или в стене; теперь дизайнер расставляет их в Tiled вручную и на глаз, без рантайм-математики — тот же принцип, что уже применялся к `EnemySlot` в обычных комнатах.
+
+### Флип-флаги тайлов Tiled
+
+Формат Tiled кодирует поворот/отражение конкретного тайла в старших 3 битах его GID (Global ID) прямо в данных слоя — отдельно от того, какой это тайл. Изначально движок эти три бита читал только для того, чтобы отбросить их и получить чистый номер тайла (иначе резолв тайлсета по `firstgid` не сработал бы) — сам факт поворота/отражения нигде не сохранялся и никак не использовался. Пока никто не пользовался этими кнопками в Tiled, это было незаметно; как только в новых комнатах подземелья (room8, room9) появились тайлы с флагом Flip Horizontally/Vertically/Rotate (например, декоративная цепь, зеркально повторяющая один и тот же кадр вертикальной полосой), стало видно, что они рисуются в своей исходной ориентации, а не в той, что видна в редакторе.
+
+Исправлено добавлением трёх полей (`flippedHorizontally/Vertically/Diagonally`) в `ResolvedTile` (`TiledLevel.h`) — флаги читаются из сырого GID до маскирования и сохраняются вместе с уже резолвленными текстурой/вырезом. При отрисовке (`spawnTiledTileAt` в `SceneFacade.cpp`) они превращаются в поворот/масштаб спрайта:
+
+- Без диагонального флага — обычное независимое отражение по осям: `setFlippedX(H)`, `setFlippedY(V)`.
+- С диагональным флагом (транспонирование тайла по главной диагонали, применяется по спецификации Tiled раньше H/V) — поворот на 90° плюс `setFlippedX(V)`, `setFlippedY(!H)`. Эта комбинация не была очевидна — угол поворота и то, что вместо своих же H/V-флагов используются местами переставленные V/!H, подобраны перебором всех 8 комбинаций поворота на 90°×масштаб и сверены с эталонным разбором (диагональ → H → V) попиксельно, а не выведены аналитически на бумаге.
 
 ### Выбор пункта меню — курсор перехватывает клавиатуру
 

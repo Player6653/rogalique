@@ -5,7 +5,7 @@
 #include <string>
 #include <unordered_map>
 
-// Центральное хранилище именованных логгеров по имени либо отдаёт уже созданный Logger.
+// Центральное хранилище именованных логгеров — по имени либо отдаёт уже созданный Logger, либо создаёт новый.
 class ENGINE_API LoggerRegistry {
 public:
     static LoggerRegistry& getInstance();

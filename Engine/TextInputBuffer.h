@@ -6,7 +6,7 @@
 // Символы, введённые с клавиатуры за текущий кадр (sf::Event::TextEntered) — Engine::run() наполняет каждый
 // кадр (см. .cpp), очищая перед опросом новых событий. Нужен отдельно от обычного polling-ввода движка
 // (sf::Keyboard::isKeyPressed, см. FocusedInput.h) — для текстового поля (например, ввод имени в таблицу
-// рекордов, см. Rogalique/NameEntryOverlayComponent) важна раскладка/Shift/IME, а это даёт только
+// рекордов, см. NameEntryOverlayComponent) важна раскладка/Shift/IME, а это даёт только
 // sf::Event::TextEntered, polling такого не умеет в принципе. Компоненты читают charsThisFrame() из своего
 // update() — тот вызывается уже после того, как Engine::run() собрал события этого кадра.
 namespace TextInputBuffer

@@ -4,7 +4,8 @@
 
 class GameObject;
 
-// Метка меня можно преследовать вешает на себя игрок. ChaseComponent сам ищет объект с этой меткой в дереве сцены (GameWorld), а не получает цель напрямую от игрового проекта.
+// Метка "меня можно преследовать" — вешает на себя игрок. ChaseComponent сам ищет объект с этой меткой в дереве
+// сцены (GameWorld), а не получает цель напрямую от игрового проекта.
 class ENGINE_API ChaseTargetComponent : public IComponent {
 public:
     ChaseTargetComponent();

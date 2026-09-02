@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include "EngineExport.h"
 #include "IComponent.h"
 #include <SFML/Graphics.hpp>

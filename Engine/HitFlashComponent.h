@@ -5,7 +5,8 @@
 
 class SpriteComponent;
 
-// Следит за соседним HealthComponent как только тот переходит в стан подмешивает flashColor в sprite, мигая каждые blinkInterval.
+// Следит за соседним HealthComponent — как только тот переходит в стан, подмешивает flashColor в sprite, мигая
+// каждые blinkInterval.
 class ENGINE_API HitFlashComponent : public IComponent {
 public:
     HitFlashComponent(SpriteComponent& sprite, sf::Time flashDuration, sf::Time blinkInterval, sf::Color flashColor);
