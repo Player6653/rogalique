@@ -546,22 +546,42 @@ void SceneFacade::run()
         // с их естественным, часто некратным тайлу размером — это тот же якорь, что использует сам Tiled при
         // отрисовке тайлов крупнее сетки (растут вверх-вправо от клетки, в которую их поставили), то есть то, что
         // игрок видит в редакторе, one-to-one то, что в игре.
+        // origin — мировая точка (0,0) карты: levelOrigin для подземелья, arenaOrigin для арены (см.
+        // ARENA_LEVEL_PATH ниже) — обе карты рисуются этой же лямбдой, просто с разным смещением.
+        auto spawnTiledTileAt
+            = [&](sf::Vector2f origin, int x, int y, const ResolvedTile& tile, bool withCollider) {
+                  if (!tile.isValid) {
+                      return;
+                  }
+                  float w = static_cast<float>(tile.rect.width);
+                  float h = static_cast<float>(tile.rect.height);
+                  sf::Vector2f cellBottomLeft(origin.x + x * TILE_SIZE, origin.y + (y + 1) * TILE_SIZE);
+                  sf::Vector2f center(cellBottomLeft.x + w / 2.f, cellBottomLeft.y - h / 2.f);
+                  auto obj = std::make_unique<GameObject>(center);
+                  SpriteComponent& sprite = obj->addComponent<SpriteComponent>(sf::Vector2f(w, h));
+                  sprite.setPlaceholderColor(sf::Color(90, 90, 90));
+                  sprite.loadTextureRegion(tile.texturePath, tile.rect);
+                  // Флаги Flip Horizontally/Vertically/Rotate из Tiled (см. ResolvedTile::flipped* в
+                  // TiledLevel.h) — таблица подобрана и проверена побитовым сравнением с эталонным разбором
+                  // трёх флагов по спецификации Tiled (сперва диагональный флип-транспонирование, потом
+                  // горизонтальный, потом вертикальный): диагональ — поворот на 90° с flipX=V/flipY=!H, без
+                  // диагонали — обычные независимые flipX=H/flipY=V без поворота.
+                  if (tile.flippedDiagonally) {
+                      sprite.setRotation(90.f);
+                      sprite.setFlippedX(tile.flippedVertically);
+                      sprite.setFlippedY(!tile.flippedHorizontally);
+                  } else {
+                      sprite.setRotation(0.f);
+                      sprite.setFlippedX(tile.flippedHorizontally);
+                      sprite.setFlippedY(tile.flippedVertically);
+                  }
+                  if (withCollider) {
+                      obj->addComponent<ColliderComponent>(sf::Vector2f(w, h), true);
+                  }
+                  levelContainer.addChild(std::move(obj));
+              };
         auto spawnTiledTile = [&](int x, int y, const ResolvedTile& tile, bool withCollider) {
-            if (!tile.isValid) {
-                return;
-            }
-            float w = static_cast<float>(tile.rect.width);
-            float h = static_cast<float>(tile.rect.height);
-            sf::Vector2f cellBottomLeft(levelOrigin.x + x * TILE_SIZE, levelOrigin.y + (y + 1) * TILE_SIZE);
-            sf::Vector2f center(cellBottomLeft.x + w / 2.f, cellBottomLeft.y - h / 2.f);
-            auto obj = std::make_unique<GameObject>(center);
-            SpriteComponent& sprite = obj->addComponent<SpriteComponent>(sf::Vector2f(w, h));
-            sprite.setPlaceholderColor(sf::Color(90, 90, 90));
-            sprite.loadTextureRegion(tile.texturePath, tile.rect);
-            if (withCollider) {
-                obj->addComponent<ColliderComponent>(sf::Vector2f(w, h), true);
-            }
-            levelContainer.addChild(std::move(obj));
+            spawnTiledTileAt(levelOrigin, x, y, tile, withCollider);
         };
         auto spawnChest = [&](sf::Vector2f position, const std::string& itemId, int count) {
             const ItemDefinition* item = findItemDefinition(itemId);
@@ -594,31 +614,26 @@ void SceneFacade::run()
         sf::Vector2f arrowCratePosition = playerSpawn;
         GameObject* doorObject = nullptr;
 
-        // Арена волн — простой прямоугольный зал, весь построен кодом, не через Tiled (осознанное решение: код,
-        // просто зал). Стоит далеко в стороне от обычного подземелья (после ARENA_GAP_TILES тайлов зазора без
-        // пола/стен между ними) — дойти туда пешком нельзя, только телепортом при открытии двери (см.
-        // DoorComponent::setOnOpened дальше в этой функции). Позиция арены зависит от ширины подземелья
-        // (arenaOffsetXTiles), а та меняется при каждой пересборке формы — поэтому вся геометрия арены ниже
-        // такое же состояние, пересчитываемое той же лямбдой, что и само подземелье, а не константа.
-        constexpr int ARENA_SIZE_TILES = 30;
+        // Арена волн — отдельная Tiled-карта (Resources/Level/Arena.tmj), грузится и рисуется тем же путём, что и
+        // обычное подземелье (см. loadTiledLevel/spawnTiledTileAt ниже), просто со своим набором типов объектов
+        // (ArenaSpawnPoint вместо EnemySlot — кольцо появления бойцов волны, PlayerSpawn — точка телепорта игрока
+        // с двери, FixedItem/ArrowCrate — аптечки/щит/ящик). Стоит далеко в стороне от обычного подземелья (после
+        // ARENA_GAP_TILES тайлов зазора без пола/стен между ними) — дойти туда пешком нельзя, только телепортом
+        // при открытии двери (см. DoorComponent::setOnOpened дальше в этой функции). Позиция арены зависит от
+        // ширины подземелья (arenaOffsetXTiles), а та меняется при каждой пересборке формы — поэтому вся геометрия
+        // арены ниже такое же состояние, пересчитываемое той же лямбдой, что и само подземелье, а не константа.
         constexpr int ARENA_GAP_TILES = 8;
-        // Отступ аптечек/щита/ящика от стен арены (см. spawnLevelItems дальше) — общий с генератором точек спавна
-        // волны (см. rebuildLevelGeometry ниже), поэтому объявлен здесь, а не рядом со spawnLevelItems: точки
-        // спавна должны знать, где встанут эти предметы, ДО того как сами предметы вообще созданы.
-        constexpr float ARENA_ITEM_MARGIN_TILES = 6.f;
+        constexpr const char* ARENA_LEVEL_PATH = "Resources/Level/Arena.tmj";
+        TiledLevel arenaLevel;
         int arenaOffsetXTiles = 0;
         sf::Vector2f arenaOrigin(0.f, 0.f);
-        sf::Vector2f arenaCenter(0.f, 0.f);
         // Игрок телепортируется чуть южнее центра, бойцы волны появляются кольцом вокруг центра — не сразу
-        // вплотную к точке телепорта.
+        // вплотную к точке телепорта. Оба — PlayerSpawn/ArenaSpawnPoint объекты из Arena.tmj, редактируются в
+        // Tiled так же, как и всё остальное содержимое арены.
         sf::Vector2f arenaPlayerEntry(0.f, 0.f);
-        // Мировые X/Y отступов аптечек/щита/ящика от стен — считаются в rebuildLevelGeometry (см. ниже) и
-        // переиспользуются и там (чтобы точки спавна волны держались подальше от этих предметов — раньше боец
-        // волны мог заспавниться прямо НА ящике), и в spawnLevelItems (сами предметы).
-        float arenaItemNearX = 0.f;
-        float arenaItemFarX = 0.f;
-        float arenaItemNearY = 0.f;
-        float arenaItemFarY = 0.f;
+        std::vector<FixedItemSpec> arenaFixedItems;
+        bool arenaHasArrowCrate = false;
+        sf::Vector2f arenaCratePosition(0.f, 0.f);
         // Свои границы камеры для арены и для подземелья (см. класс-комментарий выше) — переключаются в момент
         // телепорта/сброса (см. DoorComponent::setOnOpened и обработчики меню дальше), а не одна общая на всё
         // сразу, поэтому можно уменьшать/увеличивать арену независимо от того, влезает ли она в самый широкий
@@ -759,150 +774,82 @@ void SceneFacade::run()
                 LOG_WARN("SceneFacade: в Tiled-карте нет объекта ArrowCrate, ставлю в точку спавна игрока");
             }
 
-            // Пол арены — одним большим спрайтом на всю внутреннюю площадь (замощён повтором текстуры, см.
-            // SpriteComponent::loadTextureRegion(..., repeat=true)), а не по клетке — иначе 30x30 давали бы
-            // лишних ~800 объектов дереву сцены только ради заливки пола, заметно било бы по FPS.
-            // Стены — по клетке, как и раньше: им всё ещё нужен свой коллайдер на каждую.
+            // Загрузка и отрисовка арены — тот же путь, что и подземелье выше (loadTiledLevel + spawnTiledTileAt),
+            // просто со своим origin (arenaOrigin, не levelOrigin) и своим набором типов объектов на слое Entities.
+            if (!loadTiledLevel(ARENA_LEVEL_PATH, arenaLevel)) {
+                throw std::runtime_error(std::string(ARENA_LEVEL_PATH) + " не загрузился");
+            }
             arenaOffsetXTiles = levelWidthTiles + ARENA_GAP_TILES;
             arenaOrigin = sf::Vector2f(levelOrigin.x + arenaOffsetXTiles * TILE_SIZE, levelOrigin.y);
-            {
-                sf::Vector2f floorSize((ARENA_SIZE_TILES - 2) * TILE_SIZE, (ARENA_SIZE_TILES - 2) * TILE_SIZE);
-                sf::Vector2f floorCenter(
-                    arenaOrigin.x + ARENA_SIZE_TILES * TILE_SIZE / 2.f, arenaOrigin.y + ARENA_SIZE_TILES * TILE_SIZE / 2.f);
-                auto floor = std::make_unique<GameObject>(floorCenter);
-                SpriteComponent& floorSprite = floor->addComponent<SpriteComponent>(floorSize);
-                floorSprite.setPlaceholderColor(sf::Color(60, 60, 60));
-                floorSprite.loadTextureRegion("Resources/Map/Tiles/floor_dark.png",
-                    sf::IntRect(0, 0, static_cast<int>(floorSize.x), static_cast<int>(floorSize.y)), true);
-                levelContainer.addChild(std::move(floor));
+            for (int y = 0; y < arenaLevel.heightTiles; ++y) {
+                for (int x = 0; x < arenaLevel.widthTiles; ++x) {
+                    if (!arenaLevel.floorTiles.empty()) {
+                        spawnTiledTileAt(arenaOrigin, x, y, arenaLevel.floorTiles[y * arenaLevel.widthTiles + x], false);
+                    }
+                }
             }
-            for (int y = 0; y < ARENA_SIZE_TILES; ++y) {
-                for (int x = 0; x < ARENA_SIZE_TILES; ++x) {
-                    bool isWall = (x == 0 || y == 0 || x == ARENA_SIZE_TILES - 1 || y == ARENA_SIZE_TILES - 1);
-                    if (!isWall) {
+            for (int y = 0; y < arenaLevel.heightTiles; ++y) {
+                for (int x = 0; x < arenaLevel.widthTiles; ++x) {
+                    if (!arenaLevel.wallTiles.empty()) {
+                        spawnTiledTileAt(arenaOrigin, x, y, arenaLevel.wallTiles[y * arenaLevel.widthTiles + x], true);
+                    }
+                }
+            }
+            for (int y = 0; y < arenaLevel.heightTiles; ++y) {
+                for (int x = 0; x < arenaLevel.widthTiles; ++x) {
+                    if (!arenaLevel.decorTiles.empty()) {
+                        spawnTiledTileAt(arenaOrigin, x, y, arenaLevel.decorTiles[y * arenaLevel.widthTiles + x], false);
+                    }
+                }
+            }
+
+            // Разбор объектов арены — свои типы (ArenaSpawnPoint вместо EnemySlot: кольцо появления бойцов волны
+            // расставлено вручную в Tiled, без рантайм-отталкивания от предметов/укрытий — сам автор карты видит
+            // расстановку и может развести точки на глаз). FixedItem/ArrowCrate читаются тем же способом, что и в
+            // подземелье выше, просто в свои arena-переменные (не путать с dungeon-шными fixedItems/hasArrowCrate).
+            arenaFixedItems.clear();
+            arenaHasArrowCrate = false;
+            arenaSpawnPoints.clear();
+            bool arenaHasPlayerSpawn = false;
+            for (const TiledObject& obj : arenaLevel.objects) {
+                sf::Vector2f position(arenaOrigin.x + obj.x, arenaOrigin.y + obj.y);
+                if (obj.type == "PlayerSpawn") {
+                    arenaPlayerEntry = position;
+                    arenaHasPlayerSpawn = true;
+                } else if (obj.type == "ArenaSpawnPoint") {
+                    arenaSpawnPoints.push_back(position);
+                } else if (obj.type == "ArrowCrate") {
+                    arenaCratePosition = position;
+                    arenaHasArrowCrate = true;
+                } else if (obj.type == "FixedItem") {
+                    auto idIt = obj.stringProps.find("itemId");
+                    if (idIt == obj.stringProps.end()) {
+                        LOG_ERROR("SceneFacade: объект FixedItem в Arena.tmj без свойства itemId, пропущен");
                         continue;
                     }
-                    sf::Vector2f cellBottomLeft(arenaOrigin.x + x * TILE_SIZE, arenaOrigin.y + (y + 1) * TILE_SIZE);
-                    sf::Vector2f center(cellBottomLeft.x + TILE_SIZE / 2.f, cellBottomLeft.y - TILE_SIZE / 2.f);
-                    auto tile = std::make_unique<GameObject>(center);
-                    SpriteComponent& sprite = tile->addComponent<SpriteComponent>(sf::Vector2f(TILE_SIZE, TILE_SIZE));
-                    sprite.setPlaceholderColor(sf::Color(90, 90, 90));
-                    sprite.loadTexture("Resources/Map/Tiles/wall.png");
-                    tile->addComponent<ColliderComponent>(sf::Vector2f(TILE_SIZE, TILE_SIZE), true);
-                    levelContainer.addChild(std::move(tile));
+                    auto countIt = obj.intProps.find("count");
+                    auto interactIt = obj.stringProps.find("requiresInteract");
+                    arenaFixedItems.push_back({idIt->second, countIt == obj.intProps.end() ? 1 : countIt->second,
+                        interactIt != obj.stringProps.end() && interactIt->second == "true", position});
+                } else {
+                    LOG_WARN("SceneFacade: объект в Arena.tmj с неизвестным типом \"" + obj.type + "\" пропущен");
                 }
             }
-            arenaCenter = sf::Vector2f(
-                arenaOrigin.x + ARENA_SIZE_TILES * TILE_SIZE / 2.f, arenaOrigin.y + ARENA_SIZE_TILES * TILE_SIZE / 2.f);
-            arenaPlayerEntry = sf::Vector2f(arenaCenter.x, arenaOrigin.y + (ARENA_SIZE_TILES - 4) * TILE_SIZE);
-
-            // Пара укрытий внутри арены (стены, за которые можно убегать и кайтить) — по 2x2 клетки,
-            // симметрично по диагонали от центра, тем же способом, что и внешние стены (клетка + коллайдер).
-            // Позиции подобраны так, чтобы НЕ попадать ни в точку входа игрока, ни в кольцо спавна волны, ни в
-            // точки аптечек/щита/ящика (см. AVOID_MIN_DISTANCE ниже — те же самые точки, от которых отодвигается
-            // кольцо спавна, так что если однажды подвинуть арену/предметы, оба места останутся согласованы).
-            struct CoverPillar {
-                int tileX;
-                int tileY;
-            };
-            constexpr CoverPillar COVER_PILLARS[] = {{17, 11}, {11, 17}};
-            for (const CoverPillar& pillar : COVER_PILLARS) {
-                for (int dy = 0; dy < 2; ++dy) {
-                    for (int dx = 0; dx < 2; ++dx) {
-                        int x = pillar.tileX + dx;
-                        int y = pillar.tileY + dy;
-                        sf::Vector2f cellBottomLeft(arenaOrigin.x + x * TILE_SIZE, arenaOrigin.y + (y + 1) * TILE_SIZE);
-                        sf::Vector2f center(cellBottomLeft.x + TILE_SIZE / 2.f, cellBottomLeft.y - TILE_SIZE / 2.f);
-                        auto tile = std::make_unique<GameObject>(center);
-                        SpriteComponent& sprite = tile->addComponent<SpriteComponent>(sf::Vector2f(TILE_SIZE, TILE_SIZE));
-                        sprite.setPlaceholderColor(sf::Color(90, 90, 90));
-                        sprite.loadTexture("Resources/Map/Tiles/wall.png");
-                        tile->addComponent<ColliderComponent>(sf::Vector2f(TILE_SIZE, TILE_SIZE), true);
-                        levelContainer.addChild(std::move(tile));
-                    }
-                }
+            if (!arenaHasPlayerSpawn) {
+                LOG_ERROR("SceneFacade: в Arena.tmj нет объекта PlayerSpawn");
+                throw std::runtime_error(std::string(ARENA_LEVEL_PATH) + " без PlayerSpawn");
             }
-
-            // Точки, где встанут аптечки/щит/ящик (см. spawnLevelItems дальше) — считаем здесь же (не только там),
-            // чтобы генератор точек спавна волны ниже мог держаться от них подальше.
-            arenaItemNearX = arenaOrigin.x + ARENA_ITEM_MARGIN_TILES * TILE_SIZE;
-            arenaItemFarX = arenaOrigin.x + (ARENA_SIZE_TILES - ARENA_ITEM_MARGIN_TILES) * TILE_SIZE;
-            arenaItemNearY = arenaOrigin.y + ARENA_ITEM_MARGIN_TILES * TILE_SIZE;
-            arenaItemFarY = arenaOrigin.y + (ARENA_SIZE_TILES - ARENA_ITEM_MARGIN_TILES) * TILE_SIZE;
+            if (arenaSpawnPoints.empty()) {
+                LOG_ERROR("SceneFacade: в Arena.tmj нет ни одного объекта ArenaSpawnPoint");
+                throw std::runtime_error(std::string(ARENA_LEVEL_PATH) + " без ArenaSpawnPoint");
+            }
 
             dungeonCameraBounds
                 = sf::FloatRect(levelOrigin.x, levelOrigin.y, levelWidthTiles * TILE_SIZE, levelHeightTiles * TILE_SIZE);
-            arenaCameraBounds
-                = sf::FloatRect(arenaOrigin.x, arenaOrigin.y, ARENA_SIZE_TILES * TILE_SIZE, ARENA_SIZE_TILES * TILE_SIZE);
-            arenaSpawnPoints.clear();
-            {
-                constexpr int SPAWN_POINT_COUNT = 12;
-                // С запасом больше любого актёра — гарантирует, что боец волны не заспавнится вплотную/поверх
-                // игрока, вещи на карте или укрытия сразу после телепорта (был баг — шанс застрять в
-                // боте; тот же баг оказался и у ящика: кольцо спавна и позиция ящика по чистой случайности
-                // совпадали математически, боец спавнился ровно НА ящике).
-                constexpr float AVOID_MIN_DISTANCE = 250.f;
-                // Все точки, вокруг которых нельзя спавнить бойца волны — раньше проверялась только точка входа
-                // игрока, теперь ещё аптечки/щит/ящик (см. arenaItemNearX/farX/... выше) и оба укрытия.
-                std::vector<sf::Vector2f> avoidPoints = {
-                    arenaPlayerEntry,
-                    sf::Vector2f(arenaItemNearX, arenaItemNearY),
-                    sf::Vector2f(arenaItemFarX, arenaItemNearY),
-                    sf::Vector2f(arenaItemNearX, arenaItemFarY),
-                    sf::Vector2f(arenaItemFarX, arenaItemFarY),
-                    sf::Vector2f(arenaItemNearX, arenaCenter.y),
-                    sf::Vector2f(arenaItemFarX, arenaCenter.y),
-                };
-                for (const CoverPillar& pillar : COVER_PILLARS) {
-                    avoidPoints.push_back(sf::Vector2f(
-                        arenaOrigin.x + (pillar.tileX + 1) * TILE_SIZE, arenaOrigin.y + (pillar.tileY + 1) * TILE_SIZE));
-                }
-                float radius = ARENA_SIZE_TILES * TILE_SIZE * 0.3f;
-                for (int i = 0; i < SPAWN_POINT_COUNT; ++i) {
-                    float angle = (2.f * 3.14159265f * static_cast<float>(i)) / SPAWN_POINT_COUNT;
-                    sf::Vector2f point = arenaCenter + sf::Vector2f(std::cos(angle) * radius, std::sin(angle) * radius);
-                    for (const sf::Vector2f& avoid : avoidPoints) {
-                        sf::Vector2f toPoint = point - avoid;
-                        float distance = std::sqrt(toPoint.x * toPoint.x + toPoint.y * toPoint.y);
-                        if (distance >= AVOID_MIN_DISTANCE) {
-                            continue;
-                        }
-                        sf::Vector2f pushDirection;
-                        if (distance > 0.0001f) {
-                            pushDirection = toPoint / distance;
-                        } else {
-                            // Совпало ТОЧНО (боец волны спавнился ровно на ящике/щите — направление
-                            // "от avoid" в этом случае не определено, toPoint почти нулевой вектор). Раньше это
-                            // просто пропускалось (защита от деления на ноль ниже), а точка оставалась ровно на
-                            // avoid — сам баг. Отталкиваем вдоль направления от центра арены к точке кольца
-                            // вместо этого — оно всегда ненулевое, точка кольца никогда не совпадает с центром.
-                            sf::Vector2f fromCenter = point - arenaCenter;
-                            float centerDistance = std::sqrt(fromCenter.x * fromCenter.x + fromCenter.y * fromCenter.y);
-                            pushDirection = centerDistance > 0.0001f ? fromCenter / centerDistance : sf::Vector2f(1.f, 0.f);
-                        }
-                        // Отодвигаем точку вдоль направления, а не просто пропускаем — волна не теряет бойца.
-                        point = avoid + pushDirection * AVOID_MIN_DISTANCE;
-                    }
-                    // Отталкивание выше двигает точку ПРОЧЬ от центра (см. случай "совпало точно" — крайний,
-                    // но не единственный: если рядом с исходной точкой кольца сразу два avoidPoints, оба
-                    // отталкивания складываются в ту же сторону), а кольцо само по себе уже стоит недалеко от
-                    // стен (radius=0.3*ARENA_SIZE_TILES*TILE_SIZE) — суммарный сдвиг мог вытолкнуть точку ЗА
-                    // внутреннюю грань стены (был баг — боты спавнились в стенах слева и справа, ровно
-                    // восток/запад, где и стоят ящик/щит, чьё отталкивание туда и толкает). Поджимаем обратно
-                    // внутрь зала явным клампом — надёжнее, чем подбирать AVOID_MIN_DISTANCE/radius под размер
-                    // конкретной арены.
-                    constexpr float SPAWN_WALL_MARGIN_TILES = 2.f;
-                    float minX = arenaOrigin.x + SPAWN_WALL_MARGIN_TILES * TILE_SIZE;
-                    float maxX = arenaOrigin.x + (ARENA_SIZE_TILES - SPAWN_WALL_MARGIN_TILES) * TILE_SIZE;
-                    float minY = arenaOrigin.y + SPAWN_WALL_MARGIN_TILES * TILE_SIZE;
-                    float maxY = arenaOrigin.y + (ARENA_SIZE_TILES - SPAWN_WALL_MARGIN_TILES) * TILE_SIZE;
-                    point.x = std::max(minX, std::min(maxX, point.x));
-                    point.y = std::max(minY, std::min(maxY, point.y));
-                    arenaSpawnPoints.push_back(point);
-                }
-            }
-            combinedWidthTiles = arenaOffsetXTiles + ARENA_SIZE_TILES;
-            combinedHeightTiles = std::max(levelHeightTiles, ARENA_SIZE_TILES);
+            arenaCameraBounds = sf::FloatRect(
+                arenaOrigin.x, arenaOrigin.y, arenaLevel.widthTiles * TILE_SIZE, arenaLevel.heightTiles * TILE_SIZE);
+            combinedWidthTiles = arenaOffsetXTiles + arenaLevel.widthTiles;
+            combinedHeightTiles = std::max(levelHeightTiles, arenaLevel.heightTiles);
 
             // NavGrid и пространственная сетка коллайдеров (см. GameWorld::buildColliderGrid/ColliderGrid) —
             // после стен и всех кинематических объектов-препятствий (Pit/арена), уже добавленных выше, те же
@@ -1148,26 +1095,21 @@ void SceneFacade::run()
             for (const FixedItemSpec& fixed : fixedItems) {
                 spawnItemPickup(fixed.position, fixed.itemId, fixed.count, fixed.requiresInteract);
             }
-            // Те же самые точки, что уже посчитаны в rebuildLevelGeometry (см. arenaItemNearX/farX/... выше) —
-            // не пересчитываем заново, чтобы точки спавна волны (которые от них отталкиваются) и сами предметы
-            // не могли разъехаться, если формулу отступа однажды поменяют только в одном месте.
-            float nearX = arenaItemNearX;
-            float farX = arenaItemFarX;
-            float nearY = arenaItemNearY;
-            float farY = arenaItemFarY;
-            spawnItemPickup(sf::Vector2f(nearX, nearY), "potion_medium", 1);  // северо-запад
-            spawnItemPickup(sf::Vector2f(farX, nearY), "potion_medium", 1);   // северо-восток
-            spawnItemPickup(sf::Vector2f(nearX, farY), "potion_big", 1);      // юго-запад
-            spawnItemPickup(sf::Vector2f(farX, farY), "potion_big", 1);       // юго-восток
-            spawnItemPickup(sf::Vector2f(nearX, arenaCenter.y), "shield", 1); // запад, посередине
+            // Аптечки/щит арены — те же FixedItem-объекты из Arena.tmj, что уже разобраны в rebuildLevelGeometry
+            // (см. arenaFixedItems выше), той же лямбдой spawnItemPickup, что и обычные FixedItem подземелья.
+            for (const FixedItemSpec& fixed : arenaFixedItems) {
+                spawnItemPickup(fixed.position, fixed.itemId, fixed.count, fixed.requiresInteract);
+            }
             // Тот же принцип, что и главный ArrowCrate в подземелье (см. crateObject выше) — бесконечная станция
             // пополнения болтов для игрока. Указатель держим отдельно (как и crateObject) — при пересборке формы
             // уровня (см. rerollContent дальше) арена сдвигается, и этот ящик просто переставляется на новое
             // место, а не пересоздаётся (в отличие от itemPickups выше — тот не ArrowCrate, а обычный предмет).
-            if (arenaCrateObject) {
-                arenaCrateObject->setPosition(sf::Vector2f(farX, arenaCenter.y));
-            } else {
-                arenaCrateObject = &actorsContainer.addChild(std::make_unique<ArrowCrate>(sf::Vector2f(farX, arenaCenter.y)));
+            if (arenaHasArrowCrate) {
+                if (arenaCrateObject) {
+                    arenaCrateObject->setPosition(arenaCratePosition);
+                } else {
+                    arenaCrateObject = &actorsContainer.addChild(std::make_unique<ArrowCrate>(arenaCratePosition));
+                }
             }
         };
         spawnLevelItems();
@@ -1204,7 +1146,7 @@ void SceneFacade::run()
                 });
         GameWorld::instance().getUIRoot().addChild(std::move(nameEntryObject));
 
-        // Арена волн (см. арену/ARENA_SIZE_TILES выше и ArenaWaveComponent.h) — служебный объект без своего
+        // Арена волн (см. arenaLevel/Arena.tmj выше и ArenaWaveComponent.h) — служебный объект без своего
         // визуала, просто дирижирует волнами. spawnEnemy — makeEnemyInstance() (тот же, что и у "лишних" ботов
         // выше), но добавляет через GameWorld::spawnIn(), не actorsContainer.addChild() напрямую — спавн во время
         // уже идущей игры (а не на старте сцены) обязан идти через отложенную очередь, см. класс-комментарий
@@ -1263,8 +1205,8 @@ void SceneFacade::run()
                     // визуально читалось как одна и та же "магия босса", а не два разных случайных эффекта.
                     ParticleSystem::instance().spawnBurst(
                         arenaCenter, 30, sf::Color(170, 60, 210), 60.f, 180.f, 3.f, 7.f, sf::seconds(0.6f));
-                    // "Фаза ярости" на низком HP — телепорт в случайную точку арены, с отступом в 2 тайла от стен
-                    // (та же логика, что у ARENA_ITEM_MARGIN_TILES выше), чтобы не телепортировало прямо в стену.
+                    // "Фаза ярости" на низком HP — телепорт в случайную точку арены, с отступом в 2 тайла от стен,
+                    // чтобы не телепортировало прямо в стену.
                     // Порог 30% (было 20%) и интервал 6с (было 10с) — буст сложности, фаза ярости включается
                     // раньше и телепортирует чаще.
                     if (auto* bossHealth = boss->getComponent<HealthComponent>()) {
@@ -1312,8 +1254,8 @@ void SceneFacade::run()
                 LOG_INFO("ArenaWaveComponent: все волны выбиты — победа");
             },
             // Пауза перед экраном победы — успевает доиграть анимация смерти босса (Boss.cpp: DEATH_FRAME_COUNT=57
-            // кадров по 0.04с ≈ 2.28с), а не обрывается на первом кадре внезапно появившимся экраном победы (по
-            // просьбе игрока). Небольшой запас (2.4с) на случай, если кадр начал играть не с самого начала update().
+            // кадров по 0.04с ≈ 2.28с), а не обрывается на первом кадре внезапно появившимся экраном победы.
+            // Небольшой запас (2.4с) на случай, если кадр начал играть не с самого начала update().
             BOSS_VICTORY_DELAY,
             // Разброс появления бойцов ОДНОЙ волны во времени (см. класс-комментарий spawnStagger в
             // ArenaWaveComponent.h) — вместе с attachSpawnFade() выше даёт эффект "волна затекает", а не

@@ -7,9 +7,13 @@
 
 namespace
 {
-    // Флаги поворота/отражения тайла — старшие 3 бита GID (см. официальную документацию формата Tiled). Не
-    // поддержаны (см. TiledLevel.h) — просто отбрасываются, чтобы не мешать резолву тайлсета по firstgid.
-    constexpr unsigned FLIP_FLAGS_MASK = 0xE0000000u;
+    // Флаги поворота/отражения тайла — старшие 3 бита GID (см. официальную документацию формата Tiled и
+    // ResolvedTile::flipped* в TiledLevel.h) — читаются до маскирования (см. resolveTile), чтобы не мешать
+    // резолву тайлсета по firstgid, но не отбрасываются: см. применение в SceneFacade.cpp::spawnTiledTileAt.
+    constexpr unsigned FLIP_HORIZONTAL_FLAG = 0x80000000u;
+    constexpr unsigned FLIP_VERTICAL_FLAG = 0x40000000u;
+    constexpr unsigned FLIP_DIAGONAL_FLAG = 0x20000000u;
+    constexpr unsigned FLIP_FLAGS_MASK = FLIP_HORIZONTAL_FLAG | FLIP_VERTICAL_FLAG | FLIP_DIAGONAL_FLAG;
     constexpr unsigned GID_MASK = ~FLIP_FLAGS_MASK;
 
     // Схлопывает ".."/"." в пути img относительно директории dir (не абсолютный путь — просто join двух
@@ -83,7 +87,11 @@ namespace
     ResolvedTile resolveTile(const std::vector<TilesetRange>& tilesets, int gid)
     {
         ResolvedTile result;
-        unsigned maskedGid = static_cast<unsigned>(gid) & GID_MASK;
+        unsigned rawGid = static_cast<unsigned>(gid);
+        result.flippedHorizontally = (rawGid & FLIP_HORIZONTAL_FLAG) != 0;
+        result.flippedVertically = (rawGid & FLIP_VERTICAL_FLAG) != 0;
+        result.flippedDiagonally = (rawGid & FLIP_DIAGONAL_FLAG) != 0;
+        unsigned maskedGid = rawGid & GID_MASK;
         if (maskedGid == 0) {
             return result; // Пустая клетка — не ошибка, просто !isValid.
         }

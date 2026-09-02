@@ -31,8 +31,8 @@ namespace
     constexpr int SLIME_DAMAGE = 1;
     constexpr float ATTACK_FRAME_DURATION = 0.07f;
 
-    // Ближний бой (Slime1 и не умеющие делиться дети Slime2) — "радиус вокруг себя в радиусе одной клетки", как
-    // попросили — TILE_SIZE из SceneFacade.cpp (48).
+    // Ближний бой (Slime1 и не умеющие делиться дети Slime2) — радиус вокруг себя в размере одной клетки,
+    // TILE_SIZE из SceneFacade.cpp (48).
     constexpr float MELEE_RANGE = 48.f;
     constexpr float MELEE_CHASE_STOP_DISTANCE = MELEE_RANGE - 10.f;
     const sf::Time MELEE_COOLDOWN = sf::seconds(1.f);

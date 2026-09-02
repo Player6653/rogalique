@@ -13,6 +13,9 @@ public:
 
     // Отражает спрайт по горизонтали нужно паку с одним нарисованным направлением.
     void setFlippedX(bool flipped);
+    // Отражает спрайт по вертикали — нужен тайлам с флагом Vertical Flip из Tiled (см. TiledLevel.h/
+    // ResolvedTile::flippedVertically и SceneFacade.cpp::spawnTiledTileAt).
+    void setFlippedY(bool flipped);
     // Поворот в градусах нужен снарядам (Projectile) развернуть спрайт по направлению полёта.
     void setRotation(float degrees);
     void setColor(sf::Color color);
@@ -85,6 +88,7 @@ private:
     float m_scale = 1.f;
     float m_scaleY = 1.f;
     bool m_flippedX = false;
+    bool m_flippedY = false;
 
     sf::Vector2f m_ownerPosition;
     sf::Vector2f m_positionOffset;

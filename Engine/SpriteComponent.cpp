@@ -35,7 +35,13 @@ void SpriteComponent::setPlaceholderColor(sf::Color color)
 void SpriteComponent::setFlippedX(bool flipped)
 {
     m_flippedX = flipped;
-    m_sprite.setScale(m_flippedX ? -m_scale : m_scale, m_scaleY);
+    m_sprite.setScale(m_flippedX ? -m_scale : m_scale, m_flippedY ? -m_scaleY : m_scaleY);
+}
+
+void SpriteComponent::setFlippedY(bool flipped)
+{
+    m_flippedY = flipped;
+    m_sprite.setScale(m_flippedX ? -m_scale : m_scale, m_flippedY ? -m_scaleY : m_scaleY);
 }
 
 void SpriteComponent::setRotation(float degrees)

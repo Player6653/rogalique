@@ -24,10 +24,16 @@ struct TiledObject {
 };
 
 // Куда рисовать тайл: файл-исходник + вырез из него в пикселях (см. SpriteComponent::loadTextureRegion).
+// flipped* — три старших бита GID (см. официальный формат Tiled), выставляются кнопками "Flip Horizontally/
+// Vertically"/"Rotate" в редакторе тайлов Tiled поверх обычного клика по тайлу — сохраняются в самих данных
+// слоя, отдельно от того, какой это тайл. См. применение в SceneFacade.cpp::spawnTiledTileAt.
 struct ResolvedTile {
     std::string texturePath;
     sf::IntRect rect;
     bool isValid = false;
+    bool flippedHorizontally = false;
+    bool flippedVertically = false;
+    bool flippedDiagonally = false;
 };
 
 // wallTiles/floorTiles/decorTiles — уже РЕЗОЛВЛЕНЫ (текстура+вырез, не сырой GID) прямо при загрузке файла, а не

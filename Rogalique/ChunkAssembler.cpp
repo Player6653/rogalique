@@ -243,7 +243,7 @@ bool assembleChunkedLevel(const ChunkAssemblerConfig& config, unsigned seed, Til
     }
 
     // Перебор *.tmj в poolDir через WinAPI, а не std::filesystem — тот не подключается без правки языкового
-    // стандарта проекта целиком (см. чат), а ради одной папки это лишний риск для остального кода.
+    // стандарта проекта целиком, а ради одной папки это лишний риск для остального кода.
     std::vector<std::string> poolFiles;
     {
         std::string searchPattern = config.poolDir + "\\*.tmj";

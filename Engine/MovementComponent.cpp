@@ -17,7 +17,7 @@ namespace
     constexpr float PIT_STUCK_EJECT_STEP = 4.f;
     constexpr float PIT_STUCK_EJECT_MAX_DISTANCE = 400.f; // с запасом перекрывает любой разумный размер Pit.
     // За сколько доигрывает отскок (см. m_pitEjectElapsed/m_pitEjectDuration в .h) — не мгновенный телепорт, а
-    // короткая анимация с замедлением к концу (см. update()), попросил игрок вместо резкого рывка.
+    // короткая анимация с замедлением к концу (см. update()) вместо резкого рывка.
     const sf::Time PIT_EJECT_DURATION = sf::seconds(0.25f);
 
     // easeOutCubic — быстрый старт, плавное замедление к цели; ощущается как настоящий "отскок", а не равномерная
