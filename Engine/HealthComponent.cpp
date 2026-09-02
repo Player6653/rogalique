@@ -16,6 +16,7 @@ namespace
 HealthComponent::HealthComponent(int maxHp, int armor, sf::Time postHitInvulnerability)
     : m_hp(maxHp),
       m_maxHp(maxHp),
+      m_baseMaxHp(maxHp),
       m_armor(armor),
       m_postHitInvulnerability(postHitInvulnerability)
 {
@@ -72,6 +73,9 @@ int HealthComponent::takeDamage(int amount)
     }
 
     int effectiveDamage = std::max(0, amount - m_armor);
+    if (m_lastStandEnabled && m_hp > 1 && effectiveDamage >= m_hp) {
+        effectiveDamage = m_hp - 1;
+    }
     int hpBefore = m_hp;
     m_hp = std::max(0, m_hp - effectiveDamage);
     return hpBefore - m_hp;
@@ -89,6 +93,10 @@ void HealthComponent::setInvulnerable(sf::Time duration)
 
 void HealthComponent::reset()
 {
+    // Откатывает и динамический maxHp (см. increaseMaxHp/setMaxHp) к тому, что было при создании компонента —
+    // без этого награда за серию убийств (см. Rogalique/KillStreakComponent) пережила бы полный ребут уровня
+    // ("Начать"/"Играть заново"), хотя это новый забег.
+    m_maxHp = m_baseMaxHp;
     m_hp = m_maxHp;
     m_invulnerableTimeRemaining = sf::Time::Zero;
     m_stunTimeRemaining = sf::Time::Zero;

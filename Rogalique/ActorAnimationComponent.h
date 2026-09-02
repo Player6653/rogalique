@@ -35,6 +35,11 @@ struct ActorAttackAnim {
 // разница только в путях/числе кадров, которые сюда и приходят.
 struct ActorAnimationConfig {
     ActorAnimClip idle;
+    // Необязательная альтернативная "боевая" стойка вместо idle (например, IDLE_READY у босса — см. Boss.cpp) —
+    // используется вместо idle, когда isAlert задан и возвращает true. nullptr (по умолчанию, как раньше) —
+    // всегда обычный idle, ни на что не влияет для Enemy/Soldier/Slime/VampireSpawnMinion (у них этого поля нет).
+    ActorAnimClip alertIdle;
+    std::function<bool()> isAlert;
     ActorAnimClip walk;
     ActorAnimClip hurt;
     sf::Time hurtVisualDuration;

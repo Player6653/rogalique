@@ -90,6 +90,12 @@
     <ClInclude Include="ProjectileComponent.h">
       <Filter>Файлы заголовков</Filter>
     </ClInclude>
+    <ClInclude Include="VisualEffect.h">
+      <Filter>Файлы заголовков</Filter>
+    </ClInclude>
+    <ClInclude Include="SpawnFadeComponent.h">
+      <Filter>Файлы заголовков</Filter>
+    </ClInclude>
     <ClInclude Include="HitFlashComponent.h">
       <Filter>Файлы заголовков</Filter>
     </ClInclude>
@@ -117,6 +123,12 @@
     <ClInclude Include="ArmorBadgeComponent.h">
       <Filter>Файлы заголовков</Filter>
     </ClInclude>
+    <ClInclude Include="LowHealthScreenFlashComponent.h">
+      <Filter>Файлы заголовков</Filter>
+    </ClInclude>
+    <ClInclude Include="ScreenFadeComponent.h">
+      <Filter>Файлы заголовков</Filter>
+    </ClInclude>
     <ClInclude Include="HudTextComponent.h">
       <Filter>Файлы заголовков</Filter>
     </ClInclude>
@@ -130,6 +142,9 @@
       <Filter>Файлы заголовков</Filter>
     </ClInclude>
     <ClInclude Include="TextInputBuffer.h">
+      <Filter>Файлы заголовков</Filter>
+    </ClInclude>
+    <ClInclude Include="MouseWheelBuffer.h">
       <Filter>Файлы заголовков</Filter>
     </ClInclude>
     <ClInclude Include="NameEntryInput.h">
@@ -257,6 +272,12 @@
     <ClCompile Include="ProjectileComponent.cpp">
       <Filter>Исходные файлы</Filter>
     </ClCompile>
+    <ClCompile Include="VisualEffect.cpp">
+      <Filter>Исходные файлы</Filter>
+    </ClCompile>
+    <ClCompile Include="SpawnFadeComponent.cpp">
+      <Filter>Исходные файлы</Filter>
+    </ClCompile>
     <ClCompile Include="HitFlashComponent.cpp">
       <Filter>Исходные файлы</Filter>
     </ClCompile>
@@ -281,6 +302,12 @@
     <ClCompile Include="ArmorBadgeComponent.cpp">
       <Filter>Исходные файлы</Filter>
     </ClCompile>
+    <ClCompile Include="LowHealthScreenFlashComponent.cpp">
+      <Filter>Исходные файлы</Filter>
+    </ClCompile>
+    <ClCompile Include="ScreenFadeComponent.cpp">
+      <Filter>Исходные файлы</Filter>
+    </ClCompile>
     <ClCompile Include="HudTextComponent.cpp">
       <Filter>Исходные файлы</Filter>
     </ClCompile>
@@ -294,6 +321,9 @@
       <Filter>Исходные файлы</Filter>
     </ClCompile>
     <ClCompile Include="TextInputBuffer.cpp">
+      <Filter>Исходные файлы</Filter>
+    </ClCompile>
+    <ClCompile Include="MouseWheelBuffer.cpp">
       <Filter>Исходные файлы</Filter>
     </ClCompile>
     <ClCompile Include="NameEntryOverlayComponent.cpp">

@@ -78,6 +78,7 @@ private:
 
     KeyEdge m_toggleEdge;
     KeyEdge m_escapeEdge;
+    KeyEdge m_rmbEdge;
     KeyEdge m_mouseLeftEdge;
 
     OverlayPanelBase m_base;

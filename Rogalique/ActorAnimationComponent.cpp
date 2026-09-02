@@ -132,6 +132,9 @@ void ActorAnimationComponent::update(sf::Time dt)
     } else if (isMoving) {
         state = "Walk";
         clip = &m_config.walk;
+    } else if (m_config.isAlert && m_config.isAlert()) {
+        state = "IdleAlert";
+        clip = &m_config.alertIdle;
     } else {
         state = "Idle";
         clip = &m_config.idle;

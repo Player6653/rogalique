@@ -18,6 +18,16 @@ public:
     void setColor(sf::Color color);
     void clearColor();
 
+    // Сдвигает спрайт относительно позиции владельца (по умолчанию (0,0) — ровно на владельце, как раньше). Нужен
+    // существам без своей текстуры тени (см. Boss.cpp/VampireSpawnMinion.cpp) — плейсхолдер-пятно тени рисуют не в
+    // центре персонажа (там читается как полоса на груди), а смещённым вниз, ближе к ногам.
+    void setPositionOffset(sf::Vector2f offset)
+    {
+        m_positionOffset = offset;
+        m_placeholder.setPosition(m_ownerPosition + m_positionOffset);
+        m_sprite.setPosition(m_ownerPosition + m_positionOffset);
+    }
+
     // true при успехе; при неудаче заглушка остаётся видимой. Статичный кадр вся текстура целиком.
     bool loadTexture(const std::string& path);
 
@@ -75,4 +85,7 @@ private:
     float m_scale = 1.f;
     float m_scaleY = 1.f;
     bool m_flippedX = false;
+
+    sf::Vector2f m_ownerPosition;
+    sf::Vector2f m_positionOffset;
 };

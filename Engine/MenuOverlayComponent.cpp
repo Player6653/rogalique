@@ -90,9 +90,23 @@ void MenuOverlayComponent::update(sf::Time dt)
 {
     if (!m_isVisible || !m_isVisible()) {
         refreshInputHeldFlags();
+        m_wasVisible = false;
         return;
     }
     if (GameWorld::instance().isModalOpen()) {
+        refreshInputHeldFlags();
+        return;
+    }
+
+    if (!m_wasVisible) {
+        // Только что появилось (переход invisible->visible) — см. класс-комментарий m_wasVisible в .h. Считаем
+        // текущую позицию курсора уже "учтённой" (hover ниже сработает заново только после РЕАЛЬНОГО движения
+        // мыши, см. updateMouse()) и синхронизируем KeyEdge'ы без активации — тот же физический Enter, которым
+        // подтвердили предыдущий экран (например, ввод имени на экране победы), иначе мог долететь и досюда в
+        // тот же кадр и активировать первый попавшийся пункт раньше, чем игрок вообще увидел это меню.
+        m_wasVisible = true;
+        m_hasLastMousePos = true;
+        m_lastMousePos = sf::Vector2f(sf::Mouse::getPosition(RenderSystem::instance().getWindow()));
         refreshInputHeldFlags();
         return;
     }
@@ -163,11 +177,18 @@ void MenuOverlayComponent::updateMouse()
     sf::RenderWindow& window = RenderSystem::instance().getWindow();
     sf::Vector2f mousePos(sf::Mouse::getPosition(window));
 
-    // Наводка мышью меняет выбор.
-    for (std::size_t i = 0; i < m_buttonSprites.size(); ++i) {
-        if (m_buttonSprites[i].getGlobalBounds().contains(mousePos)) {
-            m_selected = static_cast<int>(i);
-            break;
+    // Наводка мышью меняет выбор — но только если курсор РЕАЛЬНО сдвинулся с прошлого кадра (см. класс-комментарий
+    // m_lastMousePos в .h): иначе курсор, просто отдыхающий над какой-то кнопкой, молча перехватывал бы выбор у
+    // клавиатуры каждый кадр, даже когда игрок явно листает меню стрелками, а не мышью.
+    bool moved = !m_hasLastMousePos || mousePos != m_lastMousePos;
+    m_lastMousePos = mousePos;
+    m_hasLastMousePos = true;
+    if (moved) {
+        for (std::size_t i = 0; i < m_buttonSprites.size(); ++i) {
+            if (m_buttonSprites[i].getGlobalBounds().contains(mousePos)) {
+                m_selected = static_cast<int>(i);
+                break;
+            }
         }
     }
 

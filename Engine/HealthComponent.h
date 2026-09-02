@@ -44,6 +44,20 @@ public:
     {
         return m_maxHp;
     }
+    // Напрямую задаёт maxHp, не трогая текущий hp — нужна загрузке сохранения (см. KillStreakComponent/GameMemento::
+    // getPlayerMaxHp): бонусы к максимуму, накопленные до сохранения, должны применяться раньше setHp(), иначе тот
+    // прижал бы сохранённый hp к ещё старому (базовому) максимуму.
+    void setMaxHp(int maxHp)
+    {
+        m_maxHp = std::max(1, maxHp);
+    }
+    // Увеличивает maxHp и сразу hp на ту же величину ("нашёл сердце", а не просто расширил будущий потолок) —
+    // награда за серию убийств в подземелье (см. KillStreakComponent).
+    void increaseMaxHp(int amount)
+    {
+        m_maxHp += amount;
+        m_hp += amount;
+    }
     int getArmor() const
     {
         return m_armor;
@@ -62,6 +76,15 @@ public:
     void setDamageInterceptor(std::function<int(int)> interceptor)
     {
         m_damageInterceptor = std::move(interceptor);
+    }
+
+    // Упрощение сложности: пока включено, удар, который снёс бы HP с >1 до 0 или ниже, вместо
+    // этого оставляет ровно 1 HP — "нельзя умереть за один неожиданно сильный удар", вторым ударом всё равно
+    // добивает как обычно (при HP==1 правило не применяется, иначе игрок стал бы бессмертным). Выключено по
+    // умолчанию — только Player.cpp явно включает его себе, ботам это не нужно.
+    void setLastStandEnabled(bool enabled)
+    {
+        m_lastStandEnabled = enabled;
     }
 
     // На duration игнорирует takeDamage — нужно для и фреймов.
@@ -86,9 +109,13 @@ public:
 private:
     int m_hp;
     int m_maxHp;
+    // Значение maxHp на момент создания компонента — см. reset(), откатывает динамические изменения (increaseMaxHp/
+    // setMaxHp) на полном ребуте, а не только hp.
+    int m_baseMaxHp;
     int m_armor;
     sf::Time m_invulnerableTimeRemaining;
     sf::Time m_stunTimeRemaining;
     sf::Time m_postHitInvulnerability;
     std::function<int(int)> m_damageInterceptor;
+    bool m_lastStandEnabled = false;
 };

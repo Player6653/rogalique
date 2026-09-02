@@ -128,9 +128,9 @@ RenderSystem::endFrame()
 | Категория | Компоненты |
 |---|---|
 | Движение и физика | `MovementComponent`, `ColliderComponent`, `ColliderGrid` |
-| Бой | `AttackComponent`, `RangedAttackComponent`, `TargetFinder` (общий поиск цели), `Projectile`/`ProjectileComponent`, `HealthComponent`, `HitFlashComponent`, `HealthBarComponent` |
-| Направление/ввод | `InputComponent`, `IDirectionProvider`, `FocusedInput`, `TextInputBuffer` |
-| Камера и рендер | `CameraComponent`, `SpriteComponent`, `TiledBackgroundComponent`, `RenderSystem` |
+| Бой | `AttackComponent` (в т.ч. необязательный лайфстил и колбэки onAttackStarted/onHit для внешнего VFX), `RangedAttackComponent`, `TargetFinder` (общий поиск цели), `Projectile`/`ProjectileComponent` (в т.ч. необязательный колбэк onImpact), `VisualEffect` (одноразовый декоративный спрайт-ролик, сам себя уничтожает по окончании), `HealthComponent` (в т.ч. `increaseMaxHp()`, «последний удар не убивает»), `HitFlashComponent`, `HealthBarComponent` |
+| Направление/ввод | `InputComponent`, `IDirectionProvider`, `FocusedInput`, `TextInputBuffer`, `MouseWheelBuffer` (буфер дельты колеса мыши, по образцу `TextInputBuffer`) |
+| Камера и рендер | `CameraComponent`, `SpriteComponent`, `TiledBackgroundComponent`, `RenderSystem`, `ScreenFadeComponent` (плавное затухание полноэкранного оверлея по триггеру), `LowHealthScreenFlashComponent` (плавная пульсация виньетирования на низком HP) |
 | UI-оверлеи | `OverlayPanelBase`/`NineSliceSprite` (общая база 9-slice панелей), `MenuOverlayComponent`, `SettingsOverlayComponent`, `InventoryOverlayComponent`, `CreditsOverlayComponent`, `NameEntryOverlayComponent`, `HudTextComponent`, `ArmorBadgeComponent`, `PickupGlowComponent` |
 | Разное | `PauseToggleComponent`, `TransientComponent` (маркер «удалить при полном ресете»), `PitComponent` (маркер «пропускать прыгающего сквозь коллайдер»), `ChaseComponent`/`ChaseTargetComponent`, `AudioSystem` |
 | Инфраструктура | `Logger`/`LoggerRegistry`/`ConsoleSink`/`FileSink`, `GameException`, `NavGrid`, `Matrix3` |
@@ -140,7 +140,7 @@ RenderSystem::endFrame()
 | Категория | Классы |
 |---|---|
 | Персонаж | `Player`, `PlayerAttackComponent`, `PlayerAnimationComponent`, `PlayerDeathComponent`, `WeaponComponent` |
-| Противники | `Enemy` (орк), `Soldier`, `Slime` (+`SlimeSplitComponent`, `SlimeShotLimitComponent`), `EnemyBehaviorComponent` (общий ИИ), `ActorAnimationComponent`/`ActorSpawnHelpers` (общий каркас) |
+| Противники | `Enemy` (орк), `Soldier`, `Slime` (+`SlimeSplitComponent`, `SlimeShotLimitComponent`), `Boss` (Vampire Lord, финальная волна арены) + `BossTeleportComponent` (фаза телепорта на низком HP), `BossIntroComponent` (одноразовая стойка при появлении), `BossSpinBarrageComponent` (редкий залп из двух колец снарядов сразу во все стороны), `VampireSpawnMinion` (призываемое подкрепление), `EnemyBehaviorComponent` (общий ИИ), `ActorAnimationComponent`/`ActorSpawnHelpers` (общий каркас), `KillStreakComponent` (награда за серию убийств, +1 maxHP игроку) |
 | Инвентарь и предметы | `InventoryComponent`, `ItemDefinition`, `ItemPickup`/`ItemPickupComponent`, `SoldierAmmoComponent` |
 | Интерактивные объекты | `Chest`/`ChestComponent`, `Door`/`DoorComponent`, `InteractionHelpers` (общая логика «в радиусе + нажата E»), `ArrowCrate`/`ArrowCrateComponent`, `Trap`/`TrapComponent`, `Pit` (использует `PitComponent` из Engine/ как маркер) |
 | Уровень | `TiledLevel`, `ChunkAssembler`, `MiniJson`, `ArenaWaveComponent` |
@@ -306,3 +306,13 @@ TiledLevel level = assembler.assembleChunkedLevel(chainLength);
 ### ИИ противников: вероятностная переоценка вместо проверки каждый кадр
 
 `EnemyBehaviorComponent` реализует конечный автомат `Patrol → Chase → Alert (→ Patrol)` плюс состояние `Rest`. Обнаружение игрока учитывает не только дистанцию, но и конус зрения от направления взгляда врага: в пределах основного угла (±75°) враг видит гарантированно, в расширенном боковом секторе (до ±140°) — только с вероятностью переоценки раз в `PERIPHERAL_REROLL_INTERVAL` (0.5с), а не каждый кадр — иначе реакция врага на игрока, стоящего на границе бокового зрения, заметно «мигала» бы (то замечает, то нет) из-за дрожания угла между соседними кадрами.
+
+### Плавный спавн волн и пауза перед экраном победы
+
+`ArenaWaveComponent` раньше спавнил весь состав волны в один кадр — визуально это читалось как резкий скачок из ниоткуда. Теперь спавн каждой волны разбирается очередью: `spawnWave()` только вычисляет позиции и складывает их в `m_pendingSpawns`, а `update()` вынимает оттуда по одному бойцу раз в `spawnStagger` (порядок и точки спавна вычисляются заранее, чтобы результат не зависел от того, когда именно очередь будет разобрана). `currentWaveCleared()` при этом обязательно проверяет, что очередь пуста — иначе волна могла бы засчитаться выбитой ещё до того, как весь её состав вообще появился на арене. Каждый заспавненный боец дополнительно получает `SpawnFadeComponent` (Engine) — тело и тень плавно проявляются из прозрачности, а не выскакивают на полной непрозрачности сразу.
+
+Тем же компонентом добавлена задержка перед вызовом `onAllWavesCleared` — `victoryDelay`: как только выбита последняя волна, вместо немедленного вызова колбэка запускается таймер, и всё это время мир остаётся не на паузе, чтобы успела доиграть анимация смерти финального врага (босса); только по истечении задержки вызывается сам колбэк, ставящий игру на паузу и открывающий экран ввода имени.
+
+### Выбор пункта меню — курсор перехватывает клавиатуру
+
+`MenuOverlayComponent::updateMouse()` каждый кадр проверял, не находится ли курсор над одной из кнопок, и если да — молча переключал `m_selected` на неё, даже если курсор просто «отдыхал» там с прошлого экрана, а не был осознанно наведён игроком. На практике это давало осмысленный баг: после ввода имени на экране победы Enter активировал не «Играть заново» (первый пункт по умолчанию), а тот пункт, над которым случайно оказывался курсор. Исправлено двумя изменениями: во-первых, `updateMouse()` теперь двигает выбор только при реальном изменении позиции курсора между кадрами, а не при самом факте попадания в границы кнопки; во-вторых, на первом кадре после появления меню (переход invisible → visible) компонент запоминает текущую позицию курсора как «уже учтённую» и синхронизирует `KeyEdge`, не давая тому же физическому нажатию Enter, которым подтвердили предыдущий экран, тут же активировать первый попавшийся пункт этого меню.

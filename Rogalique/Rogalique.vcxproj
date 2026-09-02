@@ -224,6 +224,10 @@ xcopy /Y "$(SolutionDir)$(Platform)\$(Configuration)\Engine.dll" "$(OutDir)"</Co
     <ClCompile Include="PlayerDustTrailComponent.cpp" />
     <ClCompile Include="LowHealthPulseComponent.cpp" />
     <ClCompile Include="DeathParticleComponent.cpp" />
+    <ClCompile Include="VampireSpawnMinion.cpp" />
+    <ClCompile Include="KillStreakComponent.cpp" />
+    <ClCompile Include="BossTeleportComponent.cpp" />
+    <ClCompile Include="BossSpinBarrageComponent.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Player.h" />
@@ -237,6 +241,11 @@ xcopy /Y "$(SolutionDir)$(Platform)\$(Configuration)\Engine.dll" "$(OutDir)"</Co
     <ClInclude Include="PlayerDustTrailComponent.h" />
     <ClInclude Include="LowHealthPulseComponent.h" />
     <ClInclude Include="DeathParticleComponent.h" />
+    <ClInclude Include="VampireSpawnMinion.h" />
+    <ClInclude Include="KillStreakComponent.h" />
+    <ClInclude Include="BossTeleportComponent.h" />
+    <ClInclude Include="BossIntroComponent.h" />
+    <ClInclude Include="BossSpinBarrageComponent.h" />
     <ClInclude Include="Soldier.h" />
     <ClInclude Include="Slime.h" />
     <ClInclude Include="SlimeSplitComponent.h" />

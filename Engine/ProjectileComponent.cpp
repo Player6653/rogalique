@@ -8,14 +8,15 @@
 #include <cassert>
 #include <cmath>
 
-ProjectileComponent::ProjectileComponent(
-    sf::Vector2f direction, float speed, int damage, float hitRadius, float maxRange, const GameObject* ignoreOwner)
+ProjectileComponent::ProjectileComponent(sf::Vector2f direction, float speed, int damage, float hitRadius, float maxRange,
+    const GameObject* ignoreOwner, std::function<void(sf::Vector2f)> onImpact)
     : m_direction(direction),
       m_speed(speed),
       m_damage(damage),
       m_hitRadius(hitRadius),
       m_maxRange(maxRange),
-      m_ignoreOwner(ignoreOwner)
+      m_ignoreOwner(ignoreOwner),
+      m_onImpact(std::move(onImpact))
 {
     assert(damage >= 0 && "ProjectileComponent: damage must not be negative");
     assert(speed > 0.f && "ProjectileComponent: speed must be positive");
@@ -40,6 +41,9 @@ void ProjectileComponent::update(sf::Time dt)
         proposedPosition.x - m_hitRadius, proposedPosition.y - m_hitRadius, m_hitRadius * 2.f, m_hitRadius * 2.f);
     for (ColliderComponent* collider : GameWorld::instance().queryKinematicColliders(proposedBounds)) {
         if (proposedBounds.intersects(collider->getBounds())) {
+            if (m_onImpact) {
+                m_onImpact(proposedPosition);
+            }
             owner->destroy();
             return;
         }
@@ -63,6 +67,9 @@ void ProjectileComponent::update(sf::Time dt)
         int appliedDamage = health->takeDamage(m_damage);
         LOG_INFO("Projectile hit for " + std::to_string(appliedDamage) + " damage (of " + std::to_string(m_damage)
                  + " before armor; target hp now " + std::to_string(health->getHp()) + ")");
+        if (m_onImpact) {
+            m_onImpact(owner->getPosition());
+        }
         owner->destroy();
         return;
     }

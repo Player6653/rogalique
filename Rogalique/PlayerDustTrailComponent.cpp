@@ -10,8 +10,8 @@ namespace
     // SPRINT_MULTIPLIER (>1), пока зажат Shift, обычная ходьба даёт длину ровно 1.
     constexpr float SPRINT_THRESHOLD = 1.3f;
     const sf::Time SPAWN_INTERVAL = sf::seconds(0.12f);
-    constexpr int PARTICLES_PER_PUFF = 2;
-    const sf::Color DUST_COLOR(150, 120, 90);
+    constexpr int PARTICLES_PER_PUFF = 4;
+    const sf::Color DUST_COLOR(190, 165, 120);
 }
 
 PlayerDustTrailComponent::PlayerDustTrailComponent(InputComponent& input, float feetOffsetY)
@@ -23,6 +23,15 @@ PlayerDustTrailComponent::PlayerDustTrailComponent(InputComponent& input, float 
 
 void PlayerDustTrailComponent::update(sf::Time dt)
 {
+    // Рывок и прыжок — свой спрайтовый пылевой эффект из настоящих кадров пака (см. Player::getDustSprite() и
+    // PlayerAnimationComponent) — оба манёвра дают direction длиннее спринтового порога (DASH/JUMP_MULTIPLIER
+    // больше SPRINT_MULTIPLIER, см. InputComponent.cpp), так что без этой проверки процедурная пыль под ногами
+    // накладывалась бы поверх уже готового эффекта рывка/прыжка.
+    if (m_input.isDashing() || m_input.isJumping()) {
+        m_timer = sf::Time::Zero;
+        return;
+    }
+
     sf::Vector2f direction = m_input.getMoveDirection();
     float length = std::sqrt(direction.x * direction.x + direction.y * direction.y);
     if (length <= SPRINT_THRESHOLD) {

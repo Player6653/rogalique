@@ -76,3 +76,11 @@ void ChestComponent::reset()
     m_icon.loadAnimation(m_idleTexturePath, CHEST_FRAME_COUNT, CHEST_FRAME_DURATION, true);
     m_glow.setVisible(true);
 }
+
+void ChestComponent::markOpenedFromSave()
+{
+    m_opened = true;
+    m_interactEdge.sync(false);
+    m_icon.loadAnimation(m_openTexturePath, CHEST_FRAME_COUNT, CHEST_FRAME_DURATION, false);
+    m_glow.setVisible(false);
+}
