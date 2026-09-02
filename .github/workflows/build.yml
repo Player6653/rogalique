@@ -18,6 +18,12 @@ jobs:
       - name: Setup MSBuild
         uses: microsoft/setup-msbuild@v2
 
+      - name: Setup NuGet
+        uses: NuGet/setup-nuget@v2
+
+      - name: Restore NuGet packages
+        run: nuget restore Rogalique.sln
+
       - name: Build Release x64
         run: msbuild Rogalique.sln /p:Configuration=Release /p:Platform=x64 /m /v:minimal
 
