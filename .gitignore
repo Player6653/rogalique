@@ -1,0 +1,19 @@
+# temporary directories
+.vs
+x64
+x86
+*.user
+Rogalique/highscores.txt
+Rogalique/savegame.txt
+Rogalique/display_settings.txt
+Rogalique/game.log
+packages
+
+# локальная раздаточная сборка (Rogalique_test_build.zip и его распакованная копия) — пересобирается
+# скриптом, не исходники, слишком большая для репозитория (десятки-сотни МБ) и без пользы в истории git.
+Rogalique_test_build/
+Rogalique_test_build.zip
+
+.DS_Store
+Thumbs.db
+desktop.ini

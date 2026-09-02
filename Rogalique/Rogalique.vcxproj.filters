@@ -1,0 +1,288 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Sources">
+      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
+      <Extensions>cpp;c;cc;cxx;c++;cppm;ixx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="GameMain.cpp">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="Player.cpp">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="Enemy.cpp">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="Soldier.cpp">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="Slime.cpp">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="SlimeSplitComponent.cpp">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="SlimeShotLimitComponent.cpp">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="Trap.cpp">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="Pit.cpp">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="Chest.cpp">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="ChestComponent.cpp">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="Door.cpp">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="DoorComponent.cpp">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="TrapComponent.cpp">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="ArrowCrate.cpp">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="ArrowCrateComponent.cpp">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="ArenaWaveComponent.cpp">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="Leaderboard.cpp">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="GameTimerComponent.cpp">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="ItemDefinition.cpp">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="MiniJson.cpp">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="TiledLevel.cpp">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="ChunkAssembler.cpp">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="DisplaySettings.cpp">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="InventoryComponent.cpp">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="ItemPickup.cpp">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="ItemPickupComponent.cpp">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="PlayerAnimationComponent.cpp">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="ActorAnimationComponent.cpp">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="SoldierAmmoComponent.cpp">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="EnemyBehaviorComponent.cpp">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="PlayerAttackComponent.cpp">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="WeaponComponent.cpp">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="GameMemento.cpp">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="PlayerDeathComponent.cpp">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="SceneFacade.cpp">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="ActorSpawnHelpers.cpp">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="HealthChangeFeedbackComponent.cpp">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="InteractionHelpers.cpp">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="Boss.cpp">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="BossMinionSummonComponent.cpp">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="PlayerDustTrailComponent.cpp">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="LowHealthPulseComponent.cpp">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="DeathParticleComponent.cpp">
+      <Filter>Sources</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="Player.h">
+      <Filter>Sources</Filter>
+    </ClInclude>
+    <ClInclude Include="Enemy.h">
+      <Filter>Sources</Filter>
+    </ClInclude>
+    <ClInclude Include="Soldier.h">
+      <Filter>Sources</Filter>
+    </ClInclude>
+    <ClInclude Include="Slime.h">
+      <Filter>Sources</Filter>
+    </ClInclude>
+    <ClInclude Include="SlimeSplitComponent.h">
+      <Filter>Sources</Filter>
+    </ClInclude>
+    <ClInclude Include="SlimeShotLimitComponent.h">
+      <Filter>Sources</Filter>
+    </ClInclude>
+    <ClInclude Include="Trap.h">
+      <Filter>Sources</Filter>
+    </ClInclude>
+    <ClInclude Include="Pit.h">
+      <Filter>Sources</Filter>
+    </ClInclude>
+    <ClInclude Include="Chest.h">
+      <Filter>Sources</Filter>
+    </ClInclude>
+    <ClInclude Include="ChestComponent.h">
+      <Filter>Sources</Filter>
+    </ClInclude>
+    <ClInclude Include="Door.h">
+      <Filter>Sources</Filter>
+    </ClInclude>
+    <ClInclude Include="DoorComponent.h">
+      <Filter>Sources</Filter>
+    </ClInclude>
+    <ClInclude Include="TrapComponent.h">
+      <Filter>Sources</Filter>
+    </ClInclude>
+    <ClInclude Include="ArrowCrate.h">
+      <Filter>Sources</Filter>
+    </ClInclude>
+    <ClInclude Include="ArrowCrateComponent.h">
+      <Filter>Sources</Filter>
+    </ClInclude>
+    <ClInclude Include="ArenaWaveComponent.h">
+      <Filter>Sources</Filter>
+    </ClInclude>
+    <ClInclude Include="Leaderboard.h">
+      <Filter>Sources</Filter>
+    </ClInclude>
+    <ClInclude Include="GameTimerComponent.h">
+      <Filter>Sources</Filter>
+    </ClInclude>
+    <ClInclude Include="ItemDefinition.h">
+      <Filter>Sources</Filter>
+    </ClInclude>
+    <ClInclude Include="MiniJson.h">
+      <Filter>Sources</Filter>
+    </ClInclude>
+    <ClInclude Include="TiledLevel.h">
+      <Filter>Sources</Filter>
+    </ClInclude>
+    <ClInclude Include="ChunkAssembler.h">
+      <Filter>Sources</Filter>
+    </ClInclude>
+    <ClInclude Include="DisplaySettings.h">
+      <Filter>Sources</Filter>
+    </ClInclude>
+    <ClInclude Include="InventoryComponent.h">
+      <Filter>Sources</Filter>
+    </ClInclude>
+    <ClInclude Include="ItemPickup.h">
+      <Filter>Sources</Filter>
+    </ClInclude>
+    <ClInclude Include="ItemPickupComponent.h">
+      <Filter>Sources</Filter>
+    </ClInclude>
+    <ClInclude Include="PlayerAnimationComponent.h">
+      <Filter>Sources</Filter>
+    </ClInclude>
+    <ClInclude Include="ActorAnimationComponent.h">
+      <Filter>Sources</Filter>
+    </ClInclude>
+    <ClInclude Include="IAnimatedActor.h">
+      <Filter>Sources</Filter>
+    </ClInclude>
+    <ClInclude Include="SoldierAmmoComponent.h">
+      <Filter>Sources</Filter>
+    </ClInclude>
+    <ClInclude Include="EnemyBehaviorComponent.h">
+      <Filter>Sources</Filter>
+    </ClInclude>
+    <ClInclude Include="PlayerAttackComponent.h">
+      <Filter>Sources</Filter>
+    </ClInclude>
+    <ClInclude Include="WeaponComponent.h">
+      <Filter>Sources</Filter>
+    </ClInclude>
+    <ClInclude Include="GameMemento.h">
+      <Filter>Sources</Filter>
+    </ClInclude>
+    <ClInclude Include="PlayerDeathComponent.h">
+      <Filter>Sources</Filter>
+    </ClInclude>
+    <ClInclude Include="SavePaths.h">
+      <Filter>Sources</Filter>
+    </ClInclude>
+    <ClInclude Include="SceneFacade.h">
+      <Filter>Sources</Filter>
+    </ClInclude>
+    <ClInclude Include="ActorSpawnHelpers.h">
+      <Filter>Sources</Filter>
+    </ClInclude>
+    <ClInclude Include="HealthChangeFeedbackComponent.h">
+      <Filter>Sources</Filter>
+    </ClInclude>
+    <ClInclude Include="Location.h">
+      <Filter>Sources</Filter>
+    </ClInclude>
+    <ClInclude Include="InteractionHelpers.h">
+      <Filter>Sources</Filter>
+    </ClInclude>
+    <ClInclude Include="Boss.h">
+      <Filter>Sources</Filter>
+    </ClInclude>
+    <ClInclude Include="BossMinionSummonComponent.h">
+      <Filter>Sources</Filter>
+    </ClInclude>
+    <ClInclude Include="PlayerDustTrailComponent.h">
+      <Filter>Sources</Filter>
+    </ClInclude>
+    <ClInclude Include="LowHealthPulseComponent.h">
+      <Filter>Sources</Filter>
+    </ClInclude>
+    <ClInclude Include="DeathParticleComponent.h">
+      <Filter>Sources</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="Rogalique.rc">
+      <Filter>Sources</Filter>
+    </ResourceCompile>
+  </ItemGroup>
+</Project>

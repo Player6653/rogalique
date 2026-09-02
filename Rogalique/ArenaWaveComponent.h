@@ -1,0 +1,81 @@
+﻿#pragma once
+#include "IComponent.h"
+#include <SFML/System/Vector2.hpp>
+#include <functional>
+#include <string>
+#include <vector>
+
+class GameObject;
+
+// Волны монстров на арене выживания (см. SceneFacade::run() — арена строится кодом, без Tiled, попадаем сюда
+// через открытую главную дверь). Живёт на отдельном служебном GameObject, не на самой арене/двери — start()
+// зовётся из DoorComponent::setOnOpened(), после этого update() сам следит, когда очередная волна выбита
+// целиком (см. m_currentWaveEnemies — те же указатели, что вернул spawnEnemy, не уничтожаются при смерти, только
+// помечаются HealthComponent::isDead(), так что хранить и проверять их напрямую безопасно), и запускает
+// следующую (со сменой музыки) или, после последней, зовёт onAllWavesCleared (см. SceneFacade — экран победы).
+class ArenaWaveComponent : public IComponent {
+public:
+    struct WaveEnemySpec {
+        std::string kind; // "orc"/"soldier"/"slime1"/"slime2"/"slime3" — см. makeEnemyInstance в SceneFacade.cpp.
+        int count = 0;
+    };
+
+    // spawnEnemy — фактическое создание+добавление в сцену (SceneFacade знает, как: makeEnemyInstance() +
+    // GameWorld::spawnIn(), см. run()) — компонент сам ничего не создаёт, просто дирижирует. musicPaths — по
+    // записи на волну, играется при её старте (пустая строка — не менять текущую музыку). spawnPoints — где
+    // появляются бойцы волны, зациклено по модулю, если бойцов больше точек.
+    ArenaWaveComponent(std::vector<std::vector<WaveEnemySpec>> waves, std::vector<std::string> musicPaths,
+        std::vector<sf::Vector2f> spawnPoints,
+        std::function<GameObject*(const std::string& kind, sf::Vector2f position)> spawnEnemy,
+        std::function<void()> onAllWavesCleared);
+
+    void update(sf::Time dt) override;
+    void reset() override;
+
+    // Точки появления бойцов волны зависят от положения арены на карте (см. SceneFacade.cpp — арена сдвигается
+    // при каждой пересборке формы уровня, offset считается от ширины подземелья, которая меняется). Компонент сам
+    // не пересоздаётся при пересборке (на него держат ссылку многие обработчики меню) — вместо этого вызывающий
+    // код просто обновляет список точек здесь, конструктор для этого не годится.
+    void setSpawnPoints(std::vector<sf::Vector2f> spawnPoints)
+    {
+        m_spawnPoints = std::move(spawnPoints);
+    }
+
+    // Запускает волну 1 — идемпотентно повторный вызов, пока волны уже идут, ничего не делает (защита на случай,
+    // если игрок как-то умудрится дёрнуть дверь ещё раз, пока она уже открыта — но у неё и так isOpen()-гейт).
+    void start();
+
+    // -1, если волны ещё не запущены (см. m_currentWave) — нужно "Сохранить"/"Продолжить"/"Загрузить сохранение"
+    // в SceneFacade.cpp: раньше сохранение не помнило, что игрок вообще был на арене — позиция игрока (в мировых
+    // координатах арены, далеко от подземелья) восстанавливалась, а границы камеры откатывались на подземелье
+    // безусловно, и волна не перезапускалась — камера "залипала" на краю подземелья, игрок пропадал из виду (баг).
+    int getCurrentWave() const
+    {
+        return m_currentWave;
+    }
+
+    // Запускает КОНКРЕТНУЮ волну (не обязательно первую) — нужно "Продолжить"/"Загрузить сохранение", чтобы
+    // восстановить ту волну, на которой игрок сохранился (см. getCurrentWave() выше). Бойцы предыдущей сохранённой
+    // волны не восстанавливаются поимённо (их точные HP не сохраняются, см. GameMemento) — волна перезапускается с
+    // нуля, тем же способом, что и currentWaveCleared()-переход между волнами при обычной игре.
+    void startAtWave(std::size_t index)
+    {
+        if (index >= m_waves.size()) {
+            return; // Защита от повреждённого/чужого файла сейва — m_waves[index] иначе читал бы за границей.
+        }
+        spawnWave(index);
+    }
+
+private:
+    void spawnWave(std::size_t index);
+    bool currentWaveCleared() const;
+
+    std::vector<std::vector<WaveEnemySpec>> m_waves;
+    std::vector<std::string> m_musicPaths;
+    std::vector<sf::Vector2f> m_spawnPoints;
+    std::function<GameObject*(const std::string&, sf::Vector2f)> m_spawnEnemy;
+    std::function<void()> m_onAllWavesCleared;
+
+    int m_currentWave = -1; // -1 — ещё не запущено.
+    std::vector<GameObject*> m_currentWaveEnemies;
+};
