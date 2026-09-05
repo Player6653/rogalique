@@ -118,11 +118,14 @@ Player::Player(sf::Vector2f position, sf::Vector2f size, sf::Vector2f cameraView
         GUN_COOLDOWN, BULLET_SPEED, BULLET_HIT_RADIUS, "", BULLET_VISUAL_SIZE, sf::Time::Zero, nullptr, false, false);
     addComponent<WeaponComponent>(&spearAttack, &gunAttack, GUN_MAGAZINE_SIZE, GUN_RESERVE_AMMO, GUN_RELOAD_DURATION);
     addComponent<PlayerAttackComponent>();
+    // Порядок важен: компоненты одного GameObject обновляются в порядке добавления, и оба красят один и тот же
+    // m_bodySprite. LowHealthPulseComponent красит его КАЖДЫЙ кадр (в том числе в родной белый, пока ХП не низкое)
+    // — если добавить его первым, он бы на каждом кадре стирал вспышку от удара, которая должна идти поверх (был
+    // баг: вспышка не была видна вовсе, кроме одного кадра, пока фон низкого ХП не тронул спрайт). Держим пульс
+    // низкого ХП первым, а вспышку от удара — второй, тогда именно она красит спрайт последней в кадре удара.
+    addComponent<LowHealthPulseComponent>(*health, *m_bodySprite, LOW_HP_THRESHOLD, Player::LOW_HP_PULSE_PERIOD);
     // Своей анимации получения урона в паке нет — мигаем телом красным на пару кадров вместо неё.
     addComponent<HitFlashComponent>(*m_bodySprite, sf::seconds(0.3f), sf::seconds(0.06f), sf::Color(255, 60, 60));
-    // Дополнительное предупреждение "мало здоровья" (см. LowHealthPulseComponent) — держится, пока HP не выше
-    // LOW_HP_THRESHOLD, а не короткой вспышкой на сам удар, как HitFlashComponent выше.
-    addComponent<LowHealthPulseComponent>(*health, *m_bodySprite, LOW_HP_THRESHOLD, Player::LOW_HP_PULSE_PERIOD);
     // Пыль под ногами на обычный бег (см. PlayerDustTrailComponent) — в паке анимации для этого нет, поэтому
     // процедурные частицы (ParticleSystem), а не спрайтовый ролик, как у m_dustSprite (рывок/прыжок). Смещение —
     // не половина VISUAL_SIZE (64, край всего бокса спрайта, там уже пустота под ногами), а по факту непрозрачных

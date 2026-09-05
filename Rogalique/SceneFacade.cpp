@@ -1250,6 +1250,14 @@ void SceneFacade::run()
                 return raw;
             },
             [&nameEntryOverlay, &gameTimer] {
+                // Игрок мог погибнуть уже ПОСЛЕ того, как выбита последняя волна, но ДО того, как отыграл
+                // victoryDelay (снаряд/оставшийся моб доехал до него в эти секунды, см. класс-комментарий
+                // victoryDelay в ArenaWaveComponent.h) — экран поражения к этому моменту уже показан
+                // (PlayerDeathComponent::update сам гасит обратный случай, см. её комментарий), поверх него победу
+                // не включаем (был баг — оба экрана могли выставиться разом, поражение сменялось победой).
+                if (GameWorld::instance().isGameOver()) {
+                    return;
+                }
                 // false — не зацикливать: win.wav не короткий джингл, а полноценный трек, доиграет один раз и
                 // затихнет сам, пока игрок читает экран победы (win.wav раньше лежал неиспользуемым).
                 AudioSystem::instance().playMusic("Resources/Sounds/win.wav", false);
@@ -1359,13 +1367,24 @@ void SceneFacade::run()
             rerollContent(contentDevice());
             // Свежий уровень — всегда подземелье, арена ещё не открыта (см. Location.h).
             currentLocation = Location::Dungeon;
-            // Новый забег — награда за прошлую серию убийств (см. KillStreakComponent/onDungeonKill выше) не
-            // переживает его: явно откатываем здесь, а не полагаемся на playerObject.resetComponents() у
-            // "В главное меню" — "Играть заново" (см. кнопку ниже) сюда идёт напрямую с экрана победы, минуя тот путь.
+            // Новый забег — награда за прошлую серию убийств (см. KillStreakComponent/onDungeonKill выше) хранится
+            // не в компоненте, а в этой локальной переменной сцены, resetComponents() ниже её не тронет — сбрасываем
+            // явно, отдельной строкой.
             dungeonKillStreak = 0;
-            if (playerHealth) {
-                playerHealth->reset();
-            }
+            // Полный сброс компонентов игрока и пятёрки именных ботов подземелья — тот же resetComponents(), что
+            // и у "В главное меню" (см. resetToSpawn/returnToMainMenu), просто без setPosition (её сразу после
+            // этого зовёт вызывающий код — playerSpawn у игрока, новые слоты у ботов уже расставил rerollContent
+            // выше). Раньше здесь трогали только HP игрока (playerHealth->reset()) — экипировка/мешок игрока и
+            // компоненты пяти именных ботов не сбрасывались вовсе, поэтому "Играть заново" после победы оставляло
+            // игрока со старой снарягой, а уже убитых в подземелье ботов — мёртвыми (баг, "Играть заново" на деле
+            // продолжало прошлый забег, а не начинало чистый).
+            playerObject.resetComponents();
+            enemyObject.resetComponents();
+            soldierObject.resetComponents();
+            slimeObject.resetComponents();
+            slime2Object.resetComponents();
+            slime3Object.resetComponents();
+            crateObject.resetComponents();
         };
 
         // Если сейв был сделан при другой форме уровня — пересобирает её под тот же сид, что и при сохранении, и

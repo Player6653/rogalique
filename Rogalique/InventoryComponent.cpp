@@ -47,7 +47,7 @@ int InventoryComponent::findEmptySlot() const
     return -1;
 }
 
-bool InventoryComponent::addItem(const ItemDefinition& item, int count)
+bool InventoryComponent::addItem(const ItemDefinition& item, int count, int durability)
 {
     // Всё-или-ничего: сперва считаем суммарную вместимость (незаполненные стеки того же предмета + пустые слоты),
     // ничего не трогая. Без этой предварительной проверки при нехватке места под ВЕСЬ count функция раньше могла
@@ -86,7 +86,7 @@ bool InventoryComponent::addItem(const ItemDefinition& item, int count)
     while (count > 0) {
         int index = findEmptySlot();
         int added = std::min(count, item.maxStack);
-        m_bag[index] = InventorySlot{&item, added};
+        m_bag[index] = InventorySlot{&item, added, durability};
         count -= added;
     }
     return true;
@@ -142,6 +142,11 @@ void InventoryComponent::useBagSlot(int index)
 
     if (isEquipCategory(item.category)) {
         const ItemDefinition* previous = getEquipped(item.category);
+        int previousDurability = getDurability(item.category);
+        // Прочность именно этого экземпляра — 0, если предмет только что подобран с карты/сундука и ещё ни разу
+        // не был надет (тогда ниже берём полную ItemDefinition::durability), иначе то, что от него осталось после
+        // прошлой носки (см. unequip()).
+        int incomingDurability = slot.durability;
         // Слот, откуда взяли надеваемый предмет, освобождаем и сразу пробуем вернуть в него прежнюю экипировку —
         // не отдельным addItem() "в никуда", иначе один и тот же предмет мог бы задвоиться, если мешок как раз
         // оказался полон в этот момент.
@@ -154,7 +159,7 @@ void InventoryComponent::useBagSlot(int index)
         // предметами такого не бывает, вся экипировка maxStack==1, но код не должен молча на этом полагаться) —
         // отменяем всю замену, а не надеваем новое поверх старого: иначе прежняя экипировка терялась бы
         // безвозвратно (найдено при аудите инвентаря).
-        if (previous && !addItem(*previous, 1)) {
+        if (previous && !addItem(*previous, 1, previousDurability)) {
             slot = savedSlot;
             LOG_WARN("Inventory: мешок полон, \"" + item.displayName + "\" не надето — некуда вернуть \""
                       + previous->displayName + "\"");
@@ -162,7 +167,7 @@ void InventoryComponent::useBagSlot(int index)
         }
         m_equipment[item.category] = &item;
         if (item.durability > 0) {
-            m_durability[item.category] = item.durability;
+            m_durability[item.category] = incomingDurability > 0 ? incomingDurability : item.durability;
         } else {
             m_durability.erase(item.category);
         }
@@ -181,7 +186,9 @@ void InventoryComponent::unequip(ItemCategory category)
     if (!equipped) {
         return;
     }
-    if (!addItem(*equipped, 1)) {
+    // Прочность уходит в мешок вместе с предметом (см. InventorySlot::durability) — иначе следующее надевание
+    // выдавало бы её заново полной (см. useBagSlot()).
+    if (!addItem(*equipped, 1, getDurability(category))) {
         LOG_WARN("Inventory: мешок полон, не удалось снять \"" + equipped->displayName + "\"");
         return;
     }

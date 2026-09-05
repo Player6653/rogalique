@@ -118,16 +118,21 @@ void ArenaWaveComponent::update(sf::Time dt)
     if (nextWave < m_waves.size()) {
         spawnWave(nextWave);
     } else {
-        m_currentWave = static_cast<int>(m_waves.size()); // За пределы — обычная ветка выше больше не сработает.
-        if (m_victoryDelay > sf::Time::Zero) {
-            LOG_INFO("ArenaWaveComponent: последняя волна выбита, ждём анимацию смерти перед экраном победы");
-            m_victoryPending = true;
-            m_victoryDelayRemaining = m_victoryDelay;
-        } else {
-            LOG_INFO("ArenaWaveComponent: последняя волна выбита");
-            if (m_onAllWavesCleared) {
-                m_onAllWavesCleared();
-            }
+        finishAllWaves();
+    }
+}
+
+void ArenaWaveComponent::finishAllWaves()
+{
+    m_currentWave = static_cast<int>(m_waves.size()); // За пределы — обычная ветка в update() больше не сработает.
+    if (m_victoryDelay > sf::Time::Zero) {
+        LOG_INFO("ArenaWaveComponent: последняя волна выбита, ждём анимацию смерти перед экраном победы");
+        m_victoryPending = true;
+        m_victoryDelayRemaining = m_victoryDelay;
+    } else {
+        LOG_INFO("ArenaWaveComponent: последняя волна выбита");
+        if (m_onAllWavesCleared) {
+            m_onAllWavesCleared();
         }
     }
 }
